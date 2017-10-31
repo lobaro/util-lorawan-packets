@@ -165,8 +165,8 @@ typedef struct {
 // these parameters should be known by your LoRaWAN stack which uses this lib
 // maybe a simple wrapper is needed
 typedef struct {
-	Lorawan_netCtrl_t* pNetCtrl; // pointer to external App netCtrl structure (see lw_const.h)
-	Lorawan_devCfg_t* pDevCfg;  // pointer to external App devCtrl structure (see lw_const.h)
+	Lorawan_netCtrl_t* pNetCtrl; // pointer to external App netCtrl structure (see lw_state.h)
+	Lorawan_devCfg_t* pDevCfg;  // pointer to external App devCtrl structure (see lw_state.h)
 } lwPackets_state_t;
 
 // Setup external dependencies
