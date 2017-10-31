@@ -26,7 +26,7 @@ SOFTWARE.
 #ifndef DRV_LOBARO_LW_PACKETS_H_
 #define DRV_LOBARO_LW_PACKETS_H_
 
-#include "lw_const.h"
+#include "lw_state.h"
 // not supported yet!
 // yet only used to throw compiler warning at important positons
 #define USE_LORAWAN_1_1  (0)

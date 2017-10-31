@@ -23,8 +23,8 @@ SOFTWARE.
 
 *****************************************************************************/
 
-#ifndef _LW_CONST_H_
-#define _LW_CONST_H_
+#ifndef _LW_STATE_H_
+#define _LW_STATE_H_
 
 // LoRaWAN device config / state parameter
 // todo add LoRaWAN 1.1 functionality
