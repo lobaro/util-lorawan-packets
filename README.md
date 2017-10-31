@@ -23,19 +23,18 @@ The Following message types (MType) are implemented:
 # Background 
 
 We use this library internally inside our proprietary closed-source (sorry!) freeRTOS based LoRaWAN-Stack. 
-At Lobaro we heavily try to achieve a flexible & modular code-base to get projects done fast. With embedded C-code this is often not that easy as with modern languages like goLang. This might be the reason why most (if not all) C based LoRaWAN implementations mix the simple task of packet encode/decode with protocol business logic. 
+At Lobaro we heavily try to achieve a flexible & modular code-base to get projects done fast. With embedded C-code this is often not that easy as with modern languages like goLang. This might be the reason why most LoRaWAN implementations mix the simple task of packet encode/decode with protocol business logic. 
 
 This library tries to decouple the packet generation from LoRaWAN stack logic and include cleanly separated only the absolute minimum of needed LoRaWAN state like keys or framecounters. We think that this LoRaWAN packet encode/decode library is valuable for anybody writing its own LoRaWAN stack. Writing an own LoRaWAN stack is not that hard but crucial for getting the most out of the protocol.
 
 ## Future development
 
-Soon the support of the LoRaWAN 1.1 specification should be integrated. 
-
-Additions / Fixes will be constantly merged into this repository. 
++ Additions / Fixes will be constantly merged into this repository. 
++ Soon the support of the LoRaWAN 1.1 specification should be integrated. 
 
 ## Demo/Example
 
-... TBD ...
+TBD 
 
 ## Related
 
