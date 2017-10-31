@@ -1,7 +1,7 @@
 # util-lorawan-packets
 
 A simple library just to pack (marshal) and parse (unmarshal) LoRaWAN packets in C. 
-It's intended to be used as basis in upper-layer LoRaWAN node oder network-server stack implementations. Beside this it could be useful for LoRaWAN testing and verification purposes.
+It's intended to be used as basis for upper-layer LoRaWAN node oder network-server stacks. Beside this it could be useful for LoRaWAN testing and verification purposes.
 
 When using this library knowledge about the LoRaWAN specification is needed. You can request the LoRaWAN specification here: https://www.lora-alliance.org/for-developers
 
