@@ -32,7 +32,8 @@ This library tries to decouple the packet generation from LoRaWAN stack logic. I
 ## Future development
 
 + Additions / Fixes will be constantly merged into this repository. 
-+ Soon the support of the LoRaWAN 1.1 specification should be integrated. 
++ Soon the support of the LoRaWAN 1.1 specification should be integrated.
++ Add GoLang cgo wrapper
 
 ## Demo/Example
 
