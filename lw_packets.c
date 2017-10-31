@@ -1,34 +1,34 @@
 /**************************************************************************
-Copyright (c) 2017 Theodor Tobias Rohde (tr@lobaro.com)
-Lobaro - Industrial IoT Solutions
-www.lobaro.com
+ Copyright (c) 2017 Theodor Tobias Rohde (tr@lobaro.com)
+ Lobaro - Industrial IoT Solutions
+ www.lobaro.com
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
 
-*****************************************************************************/
+ *****************************************************************************/
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h> // for memcpy
 #include <stdlib.h> // for NULL
 #ifndef lobaroASSERT
-	#include <assert.h>
-	#define lobaroASSERT(x) assert(x)
+#include <assert.h>
+#define lobaroASSERT(x) assert(x)
 #endif
 
 #include "crypto/lw_crypto.h"
@@ -38,16 +38,16 @@ typedef struct {
 	lwPackets_api_t api;
 	lwPackets_state_t state;
 	bool initDone;
-}lwPacketsLib_t;
+} lwPacketsLib_t;
 
-static lwPacketsLib_t lib = {.initDone=false}; // holds external dependencies
+static lwPacketsLib_t lib = { .initDone = false }; // holds external dependencies
 
 static uint16_t parseUInt16LittleEndian(uint8_t* bytes) {
-	return (((uint16_t)bytes[0]) << 0) | ( ((uint16_t)bytes[1]) << 8);
+	return (((uint16_t) bytes[0]) << 0) | (((uint16_t) bytes[1]) << 8);
 }
 
 static uint32_t parseUInt32LittleEndian(uint8_t* bytes) {
-	return (((uint32_t)bytes[0]) << 0) | (((uint32_t)bytes[1]) << 8) | (((uint32_t)bytes[2]) << 16) | (((uint32_t)bytes[3]) << 24);
+	return (((uint32_t) bytes[0]) << 0) | (((uint32_t) bytes[1]) << 8) | (((uint32_t) bytes[2]) << 16) | (((uint32_t) bytes[3]) << 24);
 }
 
 static void logNothingDummy(const char * format, ...) {
@@ -64,19 +64,19 @@ static void logNothingDummy(const char * format, ...) {
 //	puts(buffer); // or custom uart puts
 }
 
-void LoRaWAN_PacketsUtil_Init(lwPackets_api_t api, lwPackets_state_t state){
+void LoRaWAN_PacketsUtil_Init(lwPackets_api_t api, lwPackets_state_t state) {
 	lib.api = api;
 	lib.state = state;
 
-	if(lib.api.LogError == NULL){
+	if (lib.api.LogError == NULL) {
 		lib.api.LogError = logNothingDummy;
 	}
 
-	if(lib.api.LogInfo == NULL){
+	if (lib.api.LogInfo == NULL) {
 		lib.api.LogInfo = logNothingDummy;
 	}
 
-	if(lib.api.free == NULL || lib.api.malloc == NULL){
+	if (lib.api.free == NULL || lib.api.malloc == NULL) {
 		lib.api.free = free; // from <stdlib.h>
 		lib.api.malloc = malloc; // from <stdlib.h>
 	}
@@ -85,7 +85,7 @@ void LoRaWAN_PacketsUtil_Init(lwPackets_api_t api, lwPackets_state_t state){
 }
 
 lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length) {
-	if(!lib.initDone) {
+	if (!lib.initDone) {
 		return NULL;
 	}
 
@@ -138,7 +138,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 	lw_mic_t mic;	 // 4 byte lorawan message integrity code (last bytes of PHYPayload)
 	lw_key_t lw_key; // lorawan aes de/encrypt input struct (see crypto.c for details)
 
-	if(!lib.initDone) {
+	if (!lib.initDone) {
 		return 0;
 	}
 
@@ -172,53 +172,53 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		pos += 4;
 		return pos;
 	} else if (packet->MHDR.type == MTYPE_JOIN_ACCEPT) {
-	// normally not needed by a lorawan device but included for completeness (issued by a network server only!)
-		outBuffer[pos++]  = (uint8_t)(packet->BODY.JoinAccept.JoinNonce>>0);
-		outBuffer[pos++]  = (uint8_t)(packet->BODY.JoinAccept.JoinNonce>>8);
-		outBuffer[pos++] = (uint8_t)(packet->BODY.JoinAccept.JoinNonce>>16);
-		outBuffer[pos++]= (uint8_t)(packet->BODY.JoinAccept.HomeNetID>>0);
-		outBuffer[pos++]= (uint8_t)(packet->BODY.JoinAccept.HomeNetID>>8);
-		outBuffer[pos++] = (uint8_t)(packet->BODY.JoinAccept.HomeNetID>>16);
-		outBuffer[pos++] = (uint8_t)(packet->BODY.JoinAccept.DevAddr>>0);
-		outBuffer[pos++] = (uint8_t)(packet->BODY.JoinAccept.DevAddr>>8);
-		outBuffer[pos++] = (uint8_t)(packet->BODY.JoinAccept.DevAddr>>16);
-		outBuffer[pos++]= (uint8_t)(packet->BODY.JoinAccept.DevAddr>>24);
+		// normally not needed by a lorawan device but included for completeness (issued by a network server only!)
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 0);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 8);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 16);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 0);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 8);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 16);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 0);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 8);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 16);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 24);
 
 		uint8_t dlsettings = 0;
-		dlsettings |= ((uint8_t)packet->BODY.JoinAccept.DLsettings.Rx1DRoffset)<<4;
-		dlsettings |= ((uint8_t)packet->BODY.JoinAccept.DLsettings.Rx2DR);
-		outBuffer[pos++]=dlsettings;
+		dlsettings |= ((uint8_t) packet->BODY.JoinAccept.DLsettings.Rx1DRoffset) << 4;
+		dlsettings |= ((uint8_t) packet->BODY.JoinAccept.DLsettings.Rx2DR);
+		outBuffer[pos++] = dlsettings;
 
-		outBuffer[pos++]=packet->BODY.JoinAccept.RxDelay;
-		if(packet->BODY.JoinAccept.hasCFlist){
+		outBuffer[pos++] = packet->BODY.JoinAccept.RxDelay;
+		if (packet->BODY.JoinAccept.hasCFlist) {
 			memcpy(&(outBuffer[pos]), packet->BODY.JoinAccept.CFlist.FreqCH4, 3);
-			pos+=3;
+			pos += 3;
 			memcpy(&(outBuffer[pos]), packet->BODY.JoinAccept.CFlist.FreqCH5, 3);
-			pos+=3;
+			pos += 3;
 			memcpy(&(outBuffer[pos]), packet->BODY.JoinAccept.CFlist.FreqCH6, 3);
-			pos+=3;
+			pos += 3;
 			memcpy(&(outBuffer[pos]), packet->BODY.JoinAccept.CFlist.FreqCH7, 3);
-			pos+=3;
+			pos += 3;
 			memcpy(&(outBuffer[pos]), packet->BODY.JoinAccept.CFlist.FreqCH8, 3);
-			pos+=3;
+			pos += 3;
 		}
 
 		// calc mic
-       lw_key.aeskey = 	lib.state.pDevCfg->appkey;
-       lw_key.in = outBuffer;
-       lw_key.len = pos;
-       lw_join_mic(&mic, &lw_key);
-       memcpy(outBuffer+pos, mic.buf, 4);
-       pos+=4;
+		lw_key.aeskey = lib.state.pDevCfg->appkey;
+		lw_key.in = outBuffer;
+		lw_key.len = pos;
+		lw_join_mic(&mic, &lw_key);
+		memcpy(outBuffer + pos, mic.buf, 4);
+		pos += 4;
 
-       // encryp msg
-       uint8_t out[33];
-       lw_key.aeskey = 	lib.state.pDevCfg->appkey;
-       lw_key.in = outBuffer+1; // skip MHDR byte
-       lw_key.len = pos-1;
-       lw_join_encrypt(out, &lw_key);
-       memcpy(outBuffer+1, out, lw_key.len);
-       return pos;
+		// encryp msg
+		uint8_t out[33];
+		lw_key.aeskey = lib.state.pDevCfg->appkey;
+		lw_key.in = outBuffer + 1; // skip MHDR byte
+		lw_key.len = pos - 1;
+		lw_join_encrypt(out, &lw_key);
+		memcpy(outBuffer + 1, out, lw_key.len);
+		return pos;
 
 	} else {
 		return 0;
