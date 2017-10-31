@@ -40,6 +40,7 @@ TBD
 
 - This lib is partly based on the work of [JiapengLi](https://github.com/JiapengLi/lorawan-parser) and his command line tool for LoRaWAN packet parsing & encoding
 - Follow [Lobaro on Twitter](https://twitter.com/LobaroHH) to get latest news about our iot projects.
+- Similar approach for GoLang https://github.com/brocaar/lorawan. 
 
 ## Contribute
 
