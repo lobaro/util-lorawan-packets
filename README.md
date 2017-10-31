@@ -3,7 +3,7 @@
 A simple library just to pack (marshal) and parse (unmarshal) LoRaWAN packets in C. 
 It's intended to be used as basis in upper-layer LoRaWAN node oder network-server stack implementations. 
 
-## Features
+# Features
 
 - Stack independent LoRaWAN packet parser & encoder
 - Easy integration into custom upper-layer LoRaWAN stack implementations
@@ -27,30 +27,33 @@ At Lobaro we heavily try to achieve a flexible & modular code-base to get projec
 
 This library tries to decouple the packet generation from LoRaWAN stack logic and include cleanly separated only the absolut minimum of needed LoRaWAN state like the keys or framecounters. We think that this LoRaWAN packet encode/decode library is valuable for anybody writing its own LoRaWAN stack. Writing a own LoRaWAN stack is not that hard but crucial for getting the most out of the protocol.
 
-# Future development
+## Future development
 
 Soon the support of the LoRaWAN 1.1 specification should be integrated. 
 
 Additions / Fixes will be constantly merged into this repository. 
 
-# Demo/Example
+## Demo/Example
 
 ... TBD ...
 
-# Related
+## Related
 
 - This lib is partly based on the work of [JiapengLi, LoRaWAN protocol parser and packer in C](https://github.com/JiapengLi/lorawan-parser). 
 - Follow [Lobaro on Twitter](https://twitter.com/LobaroHH) to get latest news about our iot projects.
 
-# Contribute
+## Contribute
+
 We appreciate any feedback, do not hesitate to create issues or pull requests.
 
 ## License
+
 util-lorawan-packets is licensed under [The MIT License](http://opensource.org/licenses/mit-license.php). Check LICENSE for more information.
 
 AES, CMAC have its own licenses. Please follow links below to get the details.
 
 ## Acknowledgement
+
 + LoRa Alliance https://www.lora-alliance.org/
 + Brian Gladman. AES library http://www.gladman.me.uk/
 + Lander Casado, Philippas Tsigas. CMAC library http://www.cse.chalmers.se/research/group/dcs/masters/contikisec/
