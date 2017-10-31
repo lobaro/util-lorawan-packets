@@ -10,7 +10,7 @@ When using this library knowledge about the LoRaWAN specification is needed. You
 - Stack independent LoRaWAN packet parser & encoder
 - Easy integration into custom upper-layer LoRaWAN stack implementations
 - Only 5 functions: Init, New, Delete, Marshal, Unmarshal
-- [x] Support LoRaWAN 1.0 protocol
+- [x] Support LoRaWAN 1.0 protocol (EU868 only)
 - [ ] Support LoRaWAN 1.1 protocol
 
 The Following message types (MType) are implemented:
