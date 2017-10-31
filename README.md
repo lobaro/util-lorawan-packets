@@ -3,6 +3,8 @@
 A simple library just to pack (marshal) and parse (unmarshal) LoRaWAN packets in C. 
 It's intended to be used as basis in upper-layer LoRaWAN node oder network-server stack implementations. 
 
+When using this library knowledge about the LoRaWAN specification is needed. You can request the LoRaWAN specification here: https://www.lora-alliance.org/For-Developers/LoRaWANDevelopers
+
 # Features
 
 - Stack independent LoRaWAN packet parser & encoder
