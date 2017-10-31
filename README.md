@@ -39,7 +39,7 @@ Additions / Fixes will be constantly merged into this repository.
 
 ## Related
 
-- This lib is partly based on the work of [JiapengLi, LoRaWAN protocol parser and packer in C](https://github.com/JiapengLi/lorawan-parser). 
+- This lib is partly based on the work of [JiapengLi](https://github.com/JiapengLi/lorawan-parser). 
 - Follow [Lobaro on Twitter](https://twitter.com/LobaroHH) to get latest news about our iot projects.
 
 ## Contribute
@@ -57,3 +57,4 @@ AES, CMAC have its own licenses. Please follow links below to get the details.
 + LoRa Alliance https://www.lora-alliance.org/
 + Brian Gladman. AES library http://www.gladman.me.uk/
 + Lander Casado, Philippas Tsigas. CMAC library http://www.cse.chalmers.se/research/group/dcs/masters/contikisec/
++ JiapengLi, LoRaWAN protocol parser and packer in C https://github.com/JiapengLi/lorawan-parser
