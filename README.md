@@ -39,7 +39,7 @@ Additions / Fixes will be constantly merged into this repository.
 
 # Related
 
-- This lib is based on the work [JiapengLi, LoRaWAN protocol parser and packer in C](https://github.com/markdown-it/markdown-it). 
+- This lib is based on the work [JiapengLi, LoRaWAN protocol parser and packer in C](https://github.com/JiapengLi/lorawan-parser). 
 - Follow [Lobaro on Twitter](https://twitter.com/LobaroHH) to get latest news about our iot projects.
 
 # Contribute
