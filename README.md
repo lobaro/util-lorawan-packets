@@ -45,3 +45,12 @@ Additions / Fixes will be constantly merged into this repository.
 # Contribute
 We appreciate any feedback, do not hesitate to create issues or pull requests.
 
+## License
+util-lorawan-packets is licensed under [The MIT License](http://opensource.org/licenses/mit-license.php). Check LICENSE for more information.
+
+AES, CMAC have its own licenses. Please follow links below to get the details.
+
+## Acknowledgement
++ LoRa Alliance https://www.lora-alliance.org/
++ Brian Gladman. AES library http://www.gladman.me.uk/
++ Lander Casado, Philippas Tsigas. CMAC library http://www.cse.chalmers.se/research/group/dcs/masters/contikisec/
