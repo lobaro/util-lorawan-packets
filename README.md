@@ -29,7 +29,9 @@ This library tries to decouple the packet generation from LoRaWAN stack logic an
 
 # Future development
 
-Soon the support of the LoRaWAN 1.1 specification should be integrated. Additions / Fixes will be constantly merged into this repository. 
+Soon the support of the LoRaWAN 1.1 specification should be integrated. 
+
+Additions / Fixes will be constantly merged into this repository. 
 
 # Demo/Example
 
