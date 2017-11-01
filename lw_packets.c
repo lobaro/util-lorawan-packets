@@ -50,6 +50,17 @@ static uint32_t parseUInt32LittleEndian(uint8_t* bytes) {
 	return (((uint32_t) bytes[0]) << 0) | (((uint32_t) bytes[1]) << 8) | (((uint32_t) bytes[2]) << 16) | (((uint32_t) bytes[3]) << 24);
 }
 
+// EUI are 8 bytes multi-octet fields and are transmitted as little endian.
+static void convertInPlaceEUI64bufLittleEndian(uint8_t* eui8buf){
+	uint8_t tmp[8];
+	if(eui8buf){
+		memcpy(tmp, eui8buf,8);
+		for(int i=0;i<8;i++){
+			eui8buf[i]=tmp[7-i];
+		}
+	}
+}
+
 static void logNothingDummy(const char * format, ...) {
 	return;
 //  example log function may be implemented by app/user (#include <stdarg.h>, #include <stdio.h>) :
@@ -97,7 +108,7 @@ lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length) {
 	}
 	memset(packet, 0, sizeof(lorawan_packet_t));
 
-	if (length) {
+	if (payload != NULL && length) {
 
 		uint8_t* dataCpy = (uint8_t*) lib.api.malloc(length);
 		if (dataCpy == NULL) {
@@ -105,9 +116,10 @@ lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length) {
 			return NULL;
 		}
 		memcpy(dataCpy, payload, length);
-		packet->pPayload = dataCpy; // just to get sure if user creates a packet with payload but uses it as join packet afterwards (see also DeletePacket fkt)
+
 		packet->BODY.MACPayload.payload = dataCpy;
 		packet->BODY.MACPayload.payloadLength = length;
+		packet->pPayload = dataCpy; // just to get sure if user creates a packet with payload but uses it as join packet afterwards (see also DeletePacket fkt)
 	}
 
 	// static field
@@ -156,9 +168,14 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		// marshaling continues below if
 
 	} else if (packet->MHDR.type == MTYPE_JOIN_REQUEST) {
+		// EUI are 8 bytes multi-octet fields and are transmitted as little endian. (LoRaWAN Specification)
+		// ->  if the EUI-64 is 70-B3-D5-7E-F0-00-48-9C it would be in the air as 9C-48-00...
+		// convertInPlaceEUI64bufLittleEndian performs this byte order inversion in place
 		memcpy(outBuffer + pos, lib.state.pDevCfg->joinEUI, 8);
+		convertInPlaceEUI64bufLittleEndian(outBuffer + pos);
 		pos += 8;
 		memcpy(outBuffer + pos, lib.state.pDevCfg->devEUI, 8);
+		convertInPlaceEUI64bufLittleEndian(outBuffer + pos);
 		pos += 8;
 		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->devnonce & 0xff);
 		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->devnonce >> 8);

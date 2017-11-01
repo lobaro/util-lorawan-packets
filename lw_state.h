@@ -37,6 +37,9 @@ typedef struct {
 	uint8_t appkey[16]; // OTAA only
 
 	// EUIs (used for OTAA join only)
+	// EUI are 8 bytes multi-octet fields and are transmitted as little endian. (LoRaWAN Specification)
+	// ->  if the EUI-64 is 70-B3-D5-7E-F0-00-48-9C it would be in the air as 9C-48-00...
+	// LoRaWAN_MarshalPacket will take care of this (make the little endian conversion)
 	uint8_t joinEUI[8]; // before LoRaWAN1.1 this was also called the appEUI
 	uint8_t devEUI[8];
 
