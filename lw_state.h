@@ -61,6 +61,6 @@ typedef struct {
 	uint32_t NFCntDown;				// used for MAC communication on port 0 and when the FPort field is missing (LoRaWAN 1.1 only)
 									// In the two counters scheme the NFCntDown is managed by the Network Server, whereas
 									// the AFCntDown is managed by the application server
-} Lorawan_netCtrl_t;
+} Lorawan_fcnt_t;
 
 #endif

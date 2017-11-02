@@ -96,10 +96,7 @@ void LoRaWAN_PacketsUtil_Init(lwPackets_api_t api, lwPackets_state_t state) {
 }
 
 lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length) {
-	if (!lib.initDone) {
-		return NULL;
-	}
-
+	lobaroASSERT(lib.initDone);
 	lobaroASSERT(length <= 222); // max payload size of lorawan EU868 (see 2.1.6 lorawan 1.1 regional parameters)
 
 	lorawan_packet_t* packet = (lorawan_packet_t*) lib.api.malloc(sizeof(lorawan_packet_t));
@@ -128,7 +125,9 @@ lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length) {
 }
 
 void LoRaWAN_DeletePacket(lorawan_packet_t* packet) {
-	if (!lib.initDone || packet == NULL)
+	lobaroASSERT(lib.initDone);
+
+	if (packet == NULL)
 		return;
 
 	// don't rely on packets MHDR type if there is any payload memory to free
@@ -150,9 +149,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 	lw_mic_t mic;	 // 4 byte lorawan message integrity code (last bytes of PHYPayload)
 	lw_key_t lw_key; // lorawan aes de/encrypt input struct (see crypto.c for details)
 
-	if (!lib.initDone) {
-		return 0;
-	}
+	lobaroASSERT(lib.initDone);
 
 	// MHDR
 	outBuffer[pos++] = (packet->MHDR.type << 5) | (packet->MHDR.version);
@@ -320,7 +317,8 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 	lw_mic_t micCalc;		// calculated mic
 	lw_key_t lw_key;
 
-	if (!lib.initDone || length < 3) {
+	lobaroASSERT(lib.initDone);
+	if (length < 3) {
 		return NULL;
 	}
 
@@ -369,7 +367,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 		if (packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_UP || packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_UP) {
 			uplink = true;
 			lw_key.link = LW_UPLINK;
-			currFcnt32 = lib.state.pNetCtrl->FCntUp;
+			currFcnt32 = lib.state.pFCntCtrl->FCntUp;
 			packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR = fctrl >> 7;
 			packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADRACKReq = (fctrl & (1 << 6)) >> 6;
 			packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK = (fctrl & (1 << 5)) >> 5;
@@ -378,7 +376,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 
 		} else { // downlink
 			lw_key.link = LW_DOWNLINK;
-			currFcnt32 = lib.state.pNetCtrl->AFCntDown;
+			currFcnt32 = lib.state.pFCntCtrl->AFCntDown;
 #if USE_LORAWAN_1_1 == 1
 #error "missing implementation for NFCntDown"
 #endif
