@@ -179,7 +179,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length);
 // payload: optional external payload buffer with data to be copied into new packet
 // length: size of external payload
 // result: lorawan_packet_t* which must be deleted again by user!
-lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length);
+lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length);	// must  be deleted again!
 uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* buffer, uint8_t bufferSize);
 
 void LoRaWAN_DeletePacket(lorawan_packet_t* packet);

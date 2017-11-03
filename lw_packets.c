@@ -509,11 +509,11 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 		packet->BODY.JoinAccept.RxDelay = decryptedData[idx++];
 
 		if (packet->BODY.JoinAccept.hasCFlist) {
-			memcpy(packet->BODY.JoinAccept.CFlist.FreqCH4, dataToParse + idx, 3);
-			memcpy(packet->BODY.JoinAccept.CFlist.FreqCH5, dataToParse + idx + 3, 3);
-			memcpy(packet->BODY.JoinAccept.CFlist.FreqCH6, dataToParse + idx + 6, 3);
-			memcpy(packet->BODY.JoinAccept.CFlist.FreqCH7, dataToParse + idx + 9, 3);
-			memcpy(packet->BODY.JoinAccept.CFlist.FreqCH8, dataToParse + idx + 12, 3);
+			memcpy(packet->BODY.JoinAccept.CFlist.FreqCH4, decryptedData + idx, 3);
+			memcpy(packet->BODY.JoinAccept.CFlist.FreqCH5, decryptedData + idx + 3, 3);
+			memcpy(packet->BODY.JoinAccept.CFlist.FreqCH6, decryptedData + idx + 6, 3);
+			memcpy(packet->BODY.JoinAccept.CFlist.FreqCH7, decryptedData + idx + 9, 3);
+			memcpy(packet->BODY.JoinAccept.CFlist.FreqCH8, decryptedData + idx + 12, 3);
 		}
 
 		// (4) derive keys
