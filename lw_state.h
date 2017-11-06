@@ -47,7 +47,7 @@ typedef struct {
 	// used for/in join request msg (issued by client/sensor)
 	uint16_t devnonce; // must be random for each join request
 
-	// used for/in join accept msg (issued by network server)
+	// only used for/in join accept msg (issued by network server)
 	uint32_t appnonce; // aka joinnonce in lorawan 1.1, If the device is susceptible of being power cycled the JoinNonce SHALL be persistent
 	uint32_t netid;
 } Lorawan_devCfg_t;
