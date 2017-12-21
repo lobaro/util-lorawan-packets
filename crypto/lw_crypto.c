@@ -1,3 +1,4 @@
+#line __LINE__ "lw_crypto.c"
 /**************************************************************************
  Copyright (c) <2016> <Jiapeng Li>
  https://github.com/JiapengLi/lorawan-parser

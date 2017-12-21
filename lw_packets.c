@@ -1,3 +1,4 @@
+#line __LINE__ "lw_packets.c"
 /**************************************************************************
  Copyright (c) 2017 Theodor Tobias Rohde (tr@lobaro.com)
  Lobaro - Industrial IoT Solutions
@@ -88,6 +89,7 @@ void LoRaWAN_PacketsUtil_Init(lwPackets_api_t api, lwPackets_state_t state) {
 	}
 
 	if (lib.api.free == NULL || lib.api.malloc == NULL) {
+		lib.api.LogInfo("LW Packets: using c malloc and free default\n");
 		lib.api.free = free; // from <stdlib.h>
 		lib.api.malloc = malloc; // from <stdlib.h>
 	}
