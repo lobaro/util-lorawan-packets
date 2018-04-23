@@ -26,6 +26,8 @@
 #ifndef _LW_STATE_H_
 #define _LW_STATE_H_
 
+#include <stdint.h>
+
 // LoRaWAN device config / state parameter
 // todo add LoRaWAN 1.1 functionality
 typedef struct {

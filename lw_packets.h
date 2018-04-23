@@ -26,6 +26,10 @@
 #ifndef DRV_LOBARO_LW_PACKETS_H_
 #define DRV_LOBARO_LW_PACKETS_H_
 
+#include <stdbool.h>
+#include <stddef.h>
+
+
 #include "lw_state.h"
 // not supported yet!
 // yet only used to throw compiler warning at important positons
