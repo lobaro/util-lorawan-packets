@@ -119,7 +119,6 @@ lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length) {
 		}
 		memcpy(dataCpy, payload, length);
 
-		packet->BODY.MACPayload.payload = dataCpy;
 		packet->BODY.MACPayload.payloadLength = length;
 		packet->pPayload = dataCpy; // just to get sure if user creates a packet with payload but uses it as join packet afterwards (see also DeletePacket fkt)
 	}
@@ -148,7 +147,6 @@ void LoRaWAN_DeletePacket(lorawan_packet_t* packet) {
 // Marshal the packet into a given buffer, returns the actual size
 // Returns -1 when the buffer is too small
 
-// todo use bufferSize for checks while marshaling
 uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint8_t bufferSize) {
 	uint8_t pos = 0;
 	int optLen = 0;
@@ -156,6 +154,10 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 	lw_key_t lw_key; // lorawan aes de/encrypt input struct (see crypto.c for details)
 
 	lobaroASSERT(lib.initDone);
+
+	if (bufferSize < 4) {
+		return pos;
+	}
 
 	// MHDR
 	outBuffer[pos++] = (packet->MHDR.type << 5) | (packet->MHDR.version);
@@ -174,12 +176,24 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		// EUI are 8 bytes multi-octet fields and are transmitted as little endian. (LoRaWAN Specification)
 		// ->  if the EUI-64 is 70-B3-D5-7E-F0-00-48-9C it would be in the air as 9C-48-00...
 		// convertInPlaceEUI64bufLittleEndian performs this byte order inversion in place
+
+		if (bufferSize < pos + 8) {
+			return 0;
+		}
 		memcpy(outBuffer + pos, lib.state.pDevCfg->joinEUI, 8);
 		convertInPlaceEUI64bufLittleEndian(outBuffer + pos);
 		pos += 8;
+
+		if (bufferSize < pos + 8) {
+			return 0;
+		}
 		memcpy(outBuffer + pos, lib.state.pDevCfg->devEUI, 8);
 		convertInPlaceEUI64bufLittleEndian(outBuffer + pos);
 		pos += 8;
+
+		if (bufferSize < pos + 2) {
+			return 0;
+		}
 		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->devnonce & 0xff);
 		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->devnonce >> 8);
 
@@ -187,6 +201,10 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		lw_key.in = outBuffer;
 		lw_key.len = pos;
 		lw_join_mic(&mic, &lw_key);
+
+		if (bufferSize < pos + 4) {
+			return 0;
+		}
 		memcpy(outBuffer + pos, mic.buf, 4);
 		packet->MIC = mic.data;
 		pos += 4;
@@ -246,6 +264,9 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 	}
 
 	// FHDR
+	if (bufferSize < pos + 4) {
+		return 0;
+	}
 	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.DevAddr & 0xff);
 	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.DevAddr >> 8);
 	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.DevAddr >> 16);
@@ -254,6 +275,9 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 
 	if (lw_key.link == LW_UPLINK) {
 		// uplink packet
+		if (bufferSize < pos + 1) {
+			return 0;
+		}
 		outBuffer[pos++] = (packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR << 7)
 						   | (packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADRACKReq << 6)
 						   | (packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK << 5)
@@ -265,8 +289,11 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 			   || packet->MHDR.type == MTYPE_CONFIRMED_DATA_DOWN) {
 
 		// downlink packet
+		if (bufferSize < pos + 1) {
+			return 0;
+		}
 		outBuffer[pos++] = (packet->BODY.MACPayload.FHDR.FCtrl.downlink.ADR << 7)
-						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.ADRACKReq << 6)
+						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.RFU << 6)
 						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.ACK << 5)
 						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.FPending << 4)
 						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen);
@@ -278,17 +305,26 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 	}
 
 	// Little endian
+	if (bufferSize < pos + 2) {
+		return 0;
+	}
 	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.FCnt16 & 0xff);
 	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.FCnt16 >> 8);
 	lw_key.fcnt32 = packet->BODY.MACPayload.FHDR.FCnt16;
 
 	if (optLen) {
+		if (bufferSize < pos + optLen) {
+			return 0;
+		}
 		memcpy(outBuffer + pos, packet->BODY.MACPayload.FHDR.FOpts, optLen);
 		pos += optLen;
 	}
 
 	// encrypt payload (if present)
 	if (packet->BODY.MACPayload.payloadLength != 0) {
+		if (bufferSize < pos + 1) {
+			return 0;
+		}
 		outBuffer[pos++] = packet->BODY.MACPayload.FPort;
 		if (packet->BODY.MACPayload.FPort == 0) {
 			lw_key.aeskey = lib.state.pDevCfg->nwkskey; // todo maybe add this as parameter?
@@ -296,13 +332,21 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 			lw_key.aeskey = lib.state.pDevCfg->appskey;
 		}
 
-		lw_key.in = packet->BODY.MACPayload.payload;
+		lw_key.in = packet->pPayload;
 		lw_key.len = packet->BODY.MACPayload.payloadLength;
+
 		int cryptedPayloadLength = lw_encrypt(outBuffer + pos, &lw_key);
 		pos += cryptedPayloadLength;
+		if (bufferSize < pos) { // TODO: This is too late, we should predict or limit the buffer inside lw_encrypt
+			lobaroASSERT(false);
+			return 0;
+		}
 	}
 
 	// 4 byte MIC
+	if (bufferSize < pos + 4) {
+		return 0;
+	}
 	lw_key.aeskey = lib.state.pDevCfg->nwkskey;
 	lw_key.in = outBuffer;
 	lw_key.len = pos;
@@ -430,19 +474,18 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 					lw_key.in = &(dataToParse[idx]);
 					lw_key.len = packet->BODY.MACPayload.payloadLength;
 
-					packet->BODY.MACPayload.payload = (uint8_t*) lib.api.malloc(packet->BODY.MACPayload.payloadLength);
-					packet->pPayload = packet->BODY.MACPayload.payload;
+					packet->pPayload = (uint8_t*) lib.api.malloc(packet->BODY.MACPayload.payloadLength);
 
-					if (packet->BODY.MACPayload.payload == NULL) {
+					if (packet->pPayload == NULL) {
 						lib.api.LogError("LoRaWAN_UnmarshalPacket failed -> out of memory!\n");
 						lib.api.free(packet);
 						return NULL;
 					}
 
 					// decrypt by encrypt
-					if (lw_encrypt(packet->BODY.MACPayload.payload, &lw_key) <= 0) {
+					if (lw_encrypt(packet->pPayload, &lw_key) <= 0) {
 						lib.api.LogError("LoRaWAN_UnmarshalPacket decrypt fail\n");
-						lib.api.free(packet->BODY.MACPayload.payload);
+						lib.api.free(packet->pPayload);
 						lib.api.free(packet);
 						return NULL;
 					}
@@ -450,7 +493,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 
 			} else { // no payload, no port, no cry
 				packet->BODY.MACPayload.payloadLength = 0;
-				packet->BODY.MACPayload.payload = NULL;
+				packet->pPayload = NULL;
 			}
 
 			return packet;

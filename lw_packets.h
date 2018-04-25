@@ -56,10 +56,44 @@ typedef struct {
 	MHDR_LoRaWAN_MajorVersion_t version;
 } MHDR_t;
 
+typedef enum {
+	ResetInd =0x01,
+	ResetConf =0x01,
+	LinkCheckReq =0x02,
+	LinkCheckAns = 0x02,
+	LinkADRReq = 0x03,
+	LinkADRAns =0x03,
+	DutyCycleReq = 0x04,
+	DutyCycleAns = 0x04,
+	RXParamSetupReq = 0x05,
+	RXParamSetupAns = 0x05,
+	DevStatusReq = 0x06,
+	DevStatusAns = 0x06,
+	NewChannelReq = 0x07,
+	NewChannelAns = 0x07,
+	RXTimingSetupReq = 0x08,
+	RXTimingSetupAns = 0x08,
+	TxParamSetupReq = 0x09,
+	TxParamSetupAns = 0x09,
+	DlChannelReq = 0x0A,
+	DlChannelAns = 0x0A,
+	RekeyInd = 0x0B,
+	RekeyConf = 0x0B,
+	ADRParamSetupReq = 0x0C,
+	ADRParamSetupAns = 0x0C,
+	DeviceTimeReq = 0x0D,
+	DeviceTimeAns = 0x0D,
+	ForceRejoinReq = 0x0E,
+	RejoinParamSetupReq = 0x0F,
+	RejoinParamSetupAns = 0x0F,
+	// 0x80 .. 0xFF Reserved for proprietary network command extensions
+
+} Lorawan_MacCommand_t; // Corresponds to the CID
+
 // part of FHDR_FCtrl_t
 typedef struct {
 	uint8_t ADR :1; 		// Adaptive data rate control bit
-	uint8_t ADRACKReq :1;
+	uint8_t RFU :1; // Reserved for Future Use
 	uint8_t ACK :1;
 	uint8_t FPending :1;
 	uint8_t FOptsLen :4;
@@ -91,7 +125,7 @@ typedef struct {
 // part of MsgBody_t (union)
 typedef struct {
 	FHDR_t FHDR; 			// LoRaWAN Frame header
-	uint8_t* payload; 		// optional
+	//uint8_t* payload; 	// optional, NOTE: payload pointer is in lorawan_packet_t struct
 	uint8_t payloadLength;
 	uint8_t FPort; 			// must be set if payload is present else optional
 } MACPayload_t;
