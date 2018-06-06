@@ -31,6 +31,7 @@
 #ifndef lobaroASSERT
 
 #include <assert.h>
+#include <inttypes.h>
 
 #define lobaroASSERT(x) assert(x)
 #endif

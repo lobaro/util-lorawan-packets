@@ -28,7 +28,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-
+#include <github.com/lobaro/c-utils/datetime.h>
 
 #include "lw_state.h"
 // not supported yet!
@@ -119,7 +119,7 @@ typedef struct {
 	uint32_t DevAddr;
 	FHDR_FCtrl_t FCtrl;
 	uint16_t FCnt16; // only LSB of 32 bit frame Counter
-	uint8_t FOpts[16];
+	uint8_t FOpts[16]; // Max 15 bytes! Any reason for 16 byte? Alignment?
 } FHDR_t;
 
 // part of MsgBody_t (union)
@@ -176,6 +176,10 @@ typedef union {
 	JoinAccept_t JoinAccept; // For Join-Accept, the MIC field is encrypted with the payload and is not a separate field
 } MsgBody_t;
 
+typedef struct {
+	Time_t DeviceTime; // From DeviceTimeAns, 0 if not set
+} DecodedMacResponse_t;
+
 // Complete PHYPayload packet
 typedef struct {
 	// user mutable fields
@@ -188,6 +192,8 @@ typedef struct {
 	// internal control flag
 	uint8_t* pPayload; 	// != NULL if the body contains some memory that must be freed (maybe the case for dataUp/dataDown msg)
 						// this ensures a graceful delete of packet independent of MHDR type
+
+	DecodedMacResponse_t MacResp; // Field to store decoded mac responses for the application
 } lorawan_packet_t;
 
 // external function dependencies
