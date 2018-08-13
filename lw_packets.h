@@ -87,8 +87,8 @@ typedef enum {
 	RejoinParamSetupReq = 0x0F,
 	RejoinParamSetupAns = 0x0F,
 	// 0x80 .. 0xFF Reserved for proprietary network command extensions
-
 } Lorawan_MacCommand_t; // Corresponds to the CID
+
 
 // part of FHDR_FCtrl_t
 typedef struct {
@@ -139,9 +139,9 @@ typedef struct {
 
 // part of JoinAccept_t
 typedef struct {
-	uint8_t OptNeg :1;
-	uint8_t Rx1DRoffset :3;
 	uint8_t Rx2DR :4;
+	uint8_t Rx1DRoffset :3;
+	uint8_t OptNeg :1;
 } DLsettings_t;
 
 // part of JoinAccept_t
