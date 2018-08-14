@@ -57,12 +57,13 @@ typedef struct {
 } MHDR_t;
 
 typedef enum {
-	ResetInd =0x01,
-	ResetConf =0x01,
-	LinkCheckReq =0x02,
+	ResetInd = 0x01, // Send by Device (LoRaWAN 1.1)
+	ResetConf = 0x01,
+	// From here LoRaWAN 1.0
+	LinkCheckReq = 0x02, // Send by Device
 	LinkCheckAns = 0x02,
 	LinkADRReq = 0x03,
-	LinkADRAns =0x03,
+	LinkADRAns = 0x03,
 	DutyCycleReq = 0x04,
 	DutyCycleAns = 0x04,
 	RXParamSetupReq = 0x05,
@@ -73,15 +74,16 @@ typedef enum {
 	NewChannelAns = 0x07,
 	RXTimingSetupReq = 0x08,
 	RXTimingSetupAns = 0x08,
+	// From here LoRaWAN 1.1
 	TxParamSetupReq = 0x09,
 	TxParamSetupAns = 0x09,
 	DlChannelReq = 0x0A,
 	DlChannelAns = 0x0A,
-	RekeyInd = 0x0B,
+	RekeyInd = 0x0B, // Send by Device
 	RekeyConf = 0x0B,
 	ADRParamSetupReq = 0x0C,
 	ADRParamSetupAns = 0x0C,
-	DeviceTimeReq = 0x0D,
+	DeviceTimeReq = 0x0D, // Send by Device
 	DeviceTimeAns = 0x0D,
 	ForceRejoinReq = 0x0E,
 	RejoinParamSetupReq = 0x0F,
@@ -92,7 +94,7 @@ typedef enum {
 
 // part of FHDR_FCtrl_t
 typedef struct {
-	uint8_t ADR :1; 		// Adaptive data rate control bit
+	uint8_t ADR :1;        // Adaptive data rate control bit
 	uint8_t RFU :1; // Reserved for Future Use
 	uint8_t ACK :1;
 	uint8_t FPending :1;
@@ -101,7 +103,7 @@ typedef struct {
 
 // part of FHDR_FCtrl_t
 typedef struct {
-	uint8_t ADR :1; 		// Adaptive data rate control bit
+	uint8_t ADR :1;        // Adaptive data rate control bit
 	uint8_t ADRACKReq :1;
 	uint8_t ACK :1;
 	uint8_t ClassB :1;
@@ -124,10 +126,10 @@ typedef struct {
 
 // part of MsgBody_t (union)
 typedef struct {
-	FHDR_t FHDR; 			// LoRaWAN Frame header
+	FHDR_t FHDR;            // LoRaWAN Frame header
 	//uint8_t* payload; 	// optional, NOTE: payload pointer is in lorawan_packet_t struct
 	uint8_t payloadLength;
-	uint8_t FPort; 			// must be set if payload is present else optional
+	uint8_t FPort;            // must be set if payload is present else optional
 } MACPayload_t;
 
 // part of MsgBody_t (union)
@@ -156,17 +158,17 @@ typedef struct {
 
 // part of MsgBody_t (union)
 typedef struct {
-	uint32_t JoinNonce; 			// 24 bit (3 Byte), server nonce
-	uint32_t HomeNetID; 			// 24 bit (3 Byte), network identifier
-	uint32_t DevAddr;				// 32 bit (4 Byte), end-device address
-	DLsettings_t DLsettings; 		// 8 bit (1 Byte), providing some of the downlink parameter
-	uint8_t RxDelay;				// 8 bit (1 Byte), the delay between TX and RX
-									// total: 12
-	CFlist_t CFlist; 				// 16 byte, optional list of network parameters (e.g. frequencies for EU868)
-									// total: 12+16=28
+	uint32_t JoinNonce;            // 24 bit (3 Byte), server nonce
+	uint32_t HomeNetID;            // 24 bit (3 Byte), network identifier
+	uint32_t DevAddr;                // 32 bit (4 Byte), end-device address
+	DLsettings_t DLsettings;        // 8 bit (1 Byte), providing some of the downlink parameter
+	uint8_t RxDelay;                // 8 bit (1 Byte), the delay between TX and RX
+	// total: 12
+	CFlist_t CFlist;                // 16 byte, optional list of network parameters (e.g. frequencies for EU868)
+	// total: 12+16=28
 	bool hasCFlist;
 
-	uint8_t derived_nwkskey[16];	// todo use malloc instead
+	uint8_t derived_nwkskey[16];    // todo use malloc instead
 	uint8_t derived_appskey[16];
 } JoinAccept_t;
 
@@ -183,15 +185,15 @@ typedef struct {
 // Complete PHYPayload packet
 typedef struct {
 	// user mutable fields
-	MHDR_t MHDR; 		// LoRaWAN MAC header (1 Byte)
-	MsgBody_t BODY;  	// MHDR defines either MACPayload OR Join/Rejoin-Request OR Join-Accept (then MIC encrypted inside payload)
+	MHDR_t MHDR;        // LoRaWAN MAC header (1 Byte)
+	MsgBody_t BODY;    // MHDR defines either MACPayload OR Join/Rejoin-Request OR Join-Accept (then MIC encrypted inside payload)
 
 	// calculated field
 	uint32_t MIC;
 
 	// internal control flag
-	uint8_t* pPayload; 	// != NULL if the body contains some memory that must be freed (maybe the case for dataUp/dataDown msg)
-						// this ensures a graceful delete of packet independent of MHDR type
+	uint8_t* pPayload;    // != NULL if the body contains some memory that must be freed (maybe the case for dataUp/dataDown msg)
+	// this ensures a graceful delete of packet independent of MHDR type
 
 	DecodedMacResponse_t MacResp; // Field to store decoded mac responses for the application
 } lorawan_packet_t;
@@ -199,10 +201,10 @@ typedef struct {
 // external function dependencies
 // function pointers maybe NULL if using the defaults
 typedef struct {
-	void* (*malloc)(size_t size); 				// default: malloc (stdlib.h)
-	void (*free)(void* buf);					// default: free (stdlib.h)
-	void (*LogInfo)(const char * format, ...);	// default: "logNothingDummy()" function
-	void (*LogError)(const char * format, ...); // default: "logNothingDummy()" function
+	void* (* malloc)(size_t size);                // default: malloc (stdlib.h)
+	void (* free)(void* buf);                    // default: free (stdlib.h)
+	void (* LogInfo)(const char* format, ...);    // default: "logNothingDummy()" function
+	void (* LogError)(const char* format, ...); // default: "logNothingDummy()" function
 } lwPackets_api_t;
 
 // external state dependencies
@@ -223,7 +225,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length);
 // payload: optional external payload buffer with data to be copied into new packet
 // length: size of external payload
 // result: lorawan_packet_t* which must be deleted again by user!
-lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length);	// must  be deleted again!
+lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length);    // must  be deleted again!
 uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* buffer, uint8_t bufferSize);
 
 void LoRaWAN_DeletePacket(lorawan_packet_t* packet);
