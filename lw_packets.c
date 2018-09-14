@@ -414,7 +414,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 
 			uint32_t currFcnt32;
 			bool uplink = false;
-			if (packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_UP || packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_UP) {
+			if (packet->MHDR.type == MTYPE_CONFIRMED_DATA_UP || packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_UP) {
 				uplink = true;
 				lw_key.link = LW_UPLINK;
 				currFcnt32 = lib.state.pFCntCtrl->FCntUp;
