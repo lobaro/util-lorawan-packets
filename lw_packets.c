@@ -448,7 +448,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 			lw_msg_mic(&micCalc, &lw_key);
 
 			if (micCalc.data != packet->MIC) {    // check if mic is ok
-				lib.api.LogError("Data %s MIC error! -> discarding incoming packet\n", uplink ? "uplink" : "downlink");
+				lib.api.LogError("Data %s MIC error %u != %u (expected) -> discarding incoming packet\n", uplink ? "uplink" : "downlink", packet->MIC, micCalc.data);
 				lib.api.free(packet);
 				return NULL;
 			}
