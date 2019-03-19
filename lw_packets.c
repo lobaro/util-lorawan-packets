@@ -39,6 +39,8 @@
 #include "crypto/lw_crypto.h"
 #include "lw_packets.h"
 
+#include "module_logging.h"
+
 typedef struct {
 	lwPackets_api_t api;
 	lwPackets_state_t state;
@@ -93,7 +95,7 @@ void LoRaWAN_PacketsUtil_Init(lwPackets_api_t api, lwPackets_state_t state) {
 	}
 
 	if (lib.api.free == NULL || lib.api.malloc == NULL) {
-		lib.api.LogInfo("LW Packets: using c malloc and free default\n");
+		LOG_INFO("LW Packets: using c malloc and free default\n");
 		lib.api.free = free; // from <stdlib.h>
 		lib.api.malloc = malloc; // from <stdlib.h>
 	}
@@ -261,7 +263,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 
 	} else {
 		return 0;
-		lib.api.LogError("unknown LoRaWAN msg type for marshaling!");
+		LOG_ERROR("unknown LoRaWAN msg type for marshaling!");
 	}
 
 	// FHDR
@@ -374,7 +376,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 
 	lorawan_packet_t* packet = (lorawan_packet_t*) lib.api.malloc(sizeof(lorawan_packet_t));
 	if (packet == NULL) {
-		lib.api.LogError("Lobawan: Out of memory\n");
+		LOG_ERROR("Lobawan: Out of memory\n");
 		return NULL;
 	}
 	memset(packet, 0, sizeof(lorawan_packet_t));
@@ -386,7 +388,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 	idx++;
 
 	if (packet->MHDR.type == MTYPE_PROPRIETARY) {
-		lib.api.LogError("Lobawan: Got proprietary MHDR -> discard msg\n");
+		LOG_ERROR("Lobawan: Got proprietary MHDR -> discard msg\n");
 		lib.api.free(packet);
 		return NULL;
 	}
@@ -448,7 +450,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 			lw_msg_mic(&micCalc, &lw_key);
 
 			if (micCalc.data != packet->MIC) {    // check if mic is ok
-				lib.api.LogError("Data %s MIC error %u != %u (expected) -> discarding incoming packet\n", uplink ? "uplink" : "downlink", packet->MIC, micCalc.data);
+				LOG_ERROR("Data %s MIC error %u != %u (expected) -> discarding incoming packet\n", uplink ? "uplink" : "downlink", packet->MIC, micCalc.data);
 				lib.api.free(packet);
 				return NULL;
 			}
@@ -463,7 +465,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 				packet->BODY.MACPayload.FPort = dataToParse[idx++];
 				if (length == lengthWithoutPayloadAndPort + 1) { // no payload, but port
 					packet->BODY.MACPayload.payloadLength = 0;
-					lib.api.LogError("Lobawan: warn packet with port but without payload\n");
+					LOG_ERROR("Lobawan: warn packet with port but without payload\n");
 				} else {
 					packet->BODY.MACPayload.payloadLength = length - 4 - idx;
 
@@ -478,14 +480,14 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 					packet->pPayload = (uint8_t*) lib.api.malloc(packet->BODY.MACPayload.payloadLength);
 
 					if (packet->pPayload == NULL) {
-						lib.api.LogError("LoRaWAN_UnmarshalPacket failed -> out of memory!\n");
+						LOG_ERROR("LoRaWAN_UnmarshalPacket failed -> out of memory!\n");
 						lib.api.free(packet);
 						return NULL;
 					}
 
 					// decrypt by encrypt
 					if (lw_encrypt(packet->pPayload, &lw_key) <= 0) {
-						lib.api.LogError("LoRaWAN_UnmarshalPacket decrypt fail\n");
+						LOG_ERROR("LoRaWAN_UnmarshalPacket decrypt fail\n");
 						lib.api.free(packet->pPayload);
 						lib.api.free(packet);
 						return NULL;
@@ -507,7 +509,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 			} else if (length == 17 + 16) {
 				packet->BODY.JoinAccept.hasCFlist = true; // optional frequency list send by network server
 			} else {
-				lib.api.LogError("Lobawan: Got JoinRequest with unexspected length -> discarding incoming packet\n");
+				LOG_ERROR("Lobawan: Got JoinRequest with unexspected length -> discarding incoming packet\n");
 				lib.api.free(packet);
 				return NULL;
 			}
@@ -521,7 +523,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 			int pl_len = lw_join_decrypt(decryptedData + 1, &lw_key);
 
 			if (pl_len <= 0) {
-				lib.api.LogError("Lobawan: Can't decrypt JoinRequest\n");
+				LOG_ERROR("Lobawan: Can't decrypt JoinRequest\n");
 				lib.api.free(packet);
 				return NULL;
 			}
@@ -533,7 +535,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 			lw_key.len = length - 4; // skip MIC
 			lw_join_mic(&micCalc, &lw_key);
 			if (micCalc.data != packet->MIC) {    // check if mic is ok
-				lib.api.LogError("Join accept mic error -> discarding incoming packet\n");
+				LOG_ERROR("Join accept mic error -> discarding incoming packet\n");
 				lib.api.free(packet);
 				return NULL;
 			}
@@ -579,7 +581,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 		case MTYPE_JOIN_REQUEST:
 			// normally NOT needed to parse by a lorawan device but included for completeness (Unmarshalled by network servers only!)
 			if (length != 23) { // MHDR(1) + [APPEUI(8) + DEVEUI(8) + DEVNOUNCE(2)] + MIC(4)
-				lib.api.LogError("Lobawan: Got JoinRequest with unexspected length -> discarding incoming packet\n");
+				LOG_ERROR("Lobawan: Got JoinRequest with unexspected length -> discarding incoming packet\n");
 				lib.api.free(packet);
 				return NULL;
 			}
@@ -593,7 +595,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 
 			// check if mic is ok
 			if (micCalc.data != packet->MIC) {
-				lib.api.LogError("Join Request mic error -> discarding incoming packet\n");
+				LOG_ERROR("Join Request mic error -> discarding incoming packet\n");
 				lib.api.free(packet);
 				return NULL;
 			}
@@ -609,7 +611,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 			return packet;
 
 		default:
-			lib.api.LogError("Lobawan: unknown MHDR type -> discarding incoming packet\n");
+			LOG_ERROR("Lobawan: unknown MHDR type -> discarding incoming packet\n");
 			lib.api.free(packet);
 			return NULL;
 	}
