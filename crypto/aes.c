@@ -1,4 +1,3 @@
-#line __LINE__ "aes.c"
 /**************************************************************************
  Copyright (c) 1998-2008, Brian Gladman, Worcester, UK. All rights reserved.
 

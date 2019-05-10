@@ -1,4 +1,3 @@
-#line __LINE__ "cmac.c"
 /**************************************************************************
 Copyright (C) 2009 Lander Casado, Philippas Tsigas
 

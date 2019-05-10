@@ -1,4 +1,3 @@
-#line __LINE__ "lw_packets.c"
 /**************************************************************************
  Copyright (c) 2017 Theodor Tobias Rohde (tr@lobaro.com)
  Lobaro - Industrial IoT Solutions

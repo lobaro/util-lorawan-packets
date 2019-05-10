@@ -1,4 +1,3 @@
-#line __LINE__ "lw_crypto.c"
 /**************************************************************************
  Copyright (c) <2016> <Jiapeng Li>
  https://github.com/JiapengLi/lorawan-parser
@@ -62,8 +61,8 @@ void lw_msg_mic(lw_mic_t* mic, lw_key_t *key)
 // todo add LoRaWAN 1.1 support for b0[1..4]
 //  LoRaWAN 1.1 spec, 4.4:
 //  If the device is connected to a LoRaWAN1.1 Network Server and the ACK bit of the downlink frame is set,
-//	meaning this frame is acknowledging an uplink “confirmed” frame,
-//	then ConfFCnt is the frame counter value modulo 2^16 of the “confirmed” uplink frame that is being acknowledged.
+//	meaning this frame is acknowledging an uplink ï¿½confirmedï¿½ frame,
+//	then ConfFCnt is the frame counter value modulo 2^16 of the ï¿½confirmedï¿½ uplink frame that is being acknowledged.
 //	In all other cases ConfFCnt = 0x0000.
 #if USE_LORAWAN_1_1 == 1
 #error "missing lorawan implementation!"
