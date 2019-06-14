@@ -185,6 +185,13 @@ typedef struct {
 	Time_t DeviceTime; // From DeviceTimeAns, 0 if not set
 } DecodedMacResponse_t;
 
+typedef enum {
+	LORAWAN_SwitchModeClassA = 1u << 0u,
+//	LORAWAN_SwitchModeClassB = 1u << 1u,
+	LORAWAN_SwitchModeClassC = 1u << 2u,
+	LORAWAN_SwitchMode = 0b101, // any of the three above
+} Lorawan_PostAction_t;
+
 // Complete PHYPayload packet
 typedef struct {
 	// user mutable fields
@@ -198,7 +205,9 @@ typedef struct {
 	uint8_t* pPayload;    // != NULL if the body contains some memory that must be freed (maybe the case for dataUp/dataDown msg)
 	// this ensures a graceful delete of packet independent of MHDR type
 
-	DecodedMacResponse_t MacResp; // Field to store decoded mac responses for the application
+	DecodedMacResponse_t MacResp;  // Field to store decoded mac responses for the application
+
+	uint8_t PostTransmissionAction;  // Indicator for actions/changes that must be executed after the successful transmission/reception of a message
 } lorawan_packet_t;
 
 // external function dependencies
@@ -223,7 +232,8 @@ typedef struct {
 void LoRaWAN_PacketsUtil_Init(lwPackets_api_t api, lwPackets_state_t state);
 
 // LoRaWAN packet parser
-lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length);   // must  be deleted again!
+lorawan_packet_t* LoRaWAN_UnmarshalPacket(const uint8_t* dataToParse, uint8_t length);   // must  be deleted again!
+lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t length, uint32_t addr);   // must  be deleted again!
 
 // payload: optional external payload buffer with data to be copied into new packet
 // length: size of external payload

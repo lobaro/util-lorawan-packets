@@ -48,12 +48,12 @@ typedef struct {
 
 static lwPacketsLib_t lib = {.initDone = false}; // holds external dependencies
 
-static uint16_t parseUInt16LittleEndian(uint8_t* bytes) {
-	return (((uint16_t) bytes[0]) << 0) | (((uint16_t) bytes[1]) << 8);
+static uint16_t parseUInt16LittleEndian(const uint8_t* bytes) {
+	return (((uint16_t) bytes[0]) << 0u) | (((uint16_t) bytes[1]) << 8u);
 }
 
-static uint32_t parseUInt32LittleEndian(uint8_t* bytes) {
-	return (((uint32_t) bytes[0]) << 0) | (((uint32_t) bytes[1]) << 8) | (((uint32_t) bytes[2]) << 16) | (((uint32_t) bytes[3]) << 24);
+static uint32_t parseUInt32LittleEndian(const uint8_t* bytes) {
+	return (((uint32_t) bytes[0]) << 0u) | (((uint32_t) bytes[1]) << 8u) | (((uint32_t) bytes[2]) << 16u) | (((uint32_t) bytes[3]) << 24u);
 }
 
 // EUI are 8 bytes multi-octet fields and are transmitted as little endian.
@@ -363,7 +363,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 // Like LoRaWAN_NewPacket but takes a marshaled packet as input
 // MUST be freed with LoRaWAN_DeletePacket
 // data is the raw packet as produced by LoRaWAN_MarshalPacket
-lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) { // todo add keys as parameter
+lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t length, uint32_t address) { // todo add keys as parameter
 	uint8_t idx;
 	lw_mic_t micCalc;        // calculated mic
 	lw_key_t lw_key;
@@ -382,8 +382,8 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 
 	// MHDR
 	idx = 0;
-	packet->MHDR.type = dataToParse[idx] >> 5;
-	packet->MHDR.version = dataToParse[idx] & 0x3;
+	packet->MHDR.type = dataToParse[idx] >> 5u;
+	packet->MHDR.version = dataToParse[idx] & 0x3u;
 	idx++;
 
 	if (packet->MHDR.type == MTYPE_PROPRIETARY) {
@@ -403,13 +403,21 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 			// get devAdr since we need it for MIC check
 			packet->BODY.MACPayload.FHDR.DevAddr = parseUInt32LittleEndian(&(dataToParse[idx]));
 			idx += 4;
+			// if we got an address (<>0), we only try to unmarshal messages for that address
+			if ((address != 0) && (packet->BODY.MACPayload.FHDR.DevAddr != address)) {
+				// that message is not for us, ignore it
+				LOG_ERROR("Lobawan: Received msg for addr %08x (not %08x), ignoring\n", packet->BODY.MACPayload.FHDR.DevAddr, address);
+				lib.api.free(packet);
+				return NULL;
+			}
+
 			uint8_t fctrl = dataToParse[idx];
 			idx++;
 			packet->BODY.MACPayload.FHDR.FCnt16 = parseUInt16LittleEndian(&(dataToParse[idx]));
 			idx += 2;
 
 			lw_key.aeskey = lib.state.pDevCfg->nwkskey;
-			lw_key.in = dataToParse;
+			lw_key.in = (uint8_t *) dataToParse;
 			lw_key.len = length - 4;
 			lw_key.devaddr.data = packet->BODY.MACPayload.FHDR.DevAddr;
 
@@ -419,11 +427,11 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 				uplink = true;
 				lw_key.link = LW_UPLINK;
 				currFcnt32 = lib.state.pFCntCtrl->FCntUp;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR = fctrl >> 7;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADRACKReq = (fctrl & (1 << 6)) >> 6;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK = (fctrl & (1 << 5)) >> 5;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ClassB = (fctrl & (1 << 4)) >> 4;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen = (fctrl & 0x0f);
+				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR = fctrl >> 7u;
+				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADRACKReq = (fctrl & (1u << 6u)) >> 6u;
+				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK = (fctrl & (1u << 5u)) >> 5u;
+				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ClassB = (fctrl & (1u << 4u)) >> 4u;
+				packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen = (fctrl & 0x0fu);
 
 			} else { // downlink
 				lw_key.link = LW_DOWNLINK;
@@ -431,18 +439,18 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 #if USE_LORAWAN_1_1 == 1
 #error "missing implementation for NFCntDown"
 #endif
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR = fctrl >> 7;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK = (fctrl & (1 << 5)) >> 5;
-				packet->BODY.MACPayload.FHDR.FCtrl.downlink.FPending = (fctrl & (1 << 4)) >> 4;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen = (fctrl & 0x0f);
+				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR = fctrl >> 7u;
+				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK = (fctrl & (1u << 5u)) >> 5u;
+				packet->BODY.MACPayload.FHDR.FCtrl.downlink.FPending = (fctrl & (1u << 4u)) >> 4u;
+				packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen = (fctrl & 0x0fu);
 			}
 
 			uint16_t currFcnt32_LSB = (uint16_t) currFcnt32;
-			uint16_t currFcnt32_MSB = (uint16_t) (currFcnt32 >> 16);
+			uint16_t currFcnt32_MSB = (uint16_t) (currFcnt32 >> 16u);
 			if (packet->BODY.MACPayload.FHDR.FCnt16 < currFcnt32_LSB) {
 				currFcnt32_MSB++;
 			}
-			lw_key.fcnt32 = (((uint32_t) currFcnt32_MSB) << 16) + packet->BODY.MACPayload.FHDR.FCnt16;
+			lw_key.fcnt32 = (((uint32_t) currFcnt32_MSB) << 16u) + packet->BODY.MACPayload.FHDR.FCnt16;
 
 			// calc & compare mic
 			packet->MIC = parseUInt32LittleEndian(dataToParse + length - 4);
@@ -473,7 +481,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 					} else {
 						lw_key.aeskey = lib.state.pDevCfg->appskey;
 					}
-					lw_key.in = &(dataToParse[idx]);
+					lw_key.in = (uint8_t *) &(dataToParse[idx]);
 					lw_key.len = packet->BODY.MACPayload.payloadLength;
 
 					packet->pPayload = (uint8_t*) lib.api.malloc(packet->BODY.MACPayload.payloadLength);
@@ -618,3 +626,9 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length) 
 	return packet;
 }
 
+// Like LoRaWAN_NewPacket but takes a marshaled packet as input
+// MUST be freed with LoRaWAN_DeletePacket
+// data is the raw packet as produced by LoRaWAN_MarshalPacket
+lorawan_packet_t* LoRaWAN_UnmarshalPacket(const uint8_t* dataToParse, uint8_t length) { // todo add keys as parameter
+	return LoRaWAN_UnmarshalPacketFor(dataToParse, length, 0);
+}
