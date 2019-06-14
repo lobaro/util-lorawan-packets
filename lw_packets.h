@@ -88,6 +88,9 @@ typedef enum {
 	ForceRejoinReq = 0x0E,
 	RejoinParamSetupReq = 0x0F,
 	RejoinParamSetupAns = 0x0F,
+	// [1.1:2359] MAC commands for Class C devices:
+	DeviceModeInd = 0x20,  // Send by Device
+	DeviceModeConf = 0x20,
 	// 0x80 .. 0xFF Reserved for proprietary network command extensions
 } Lorawan_MacCommand_t; // Corresponds to the CID
 
@@ -225,7 +228,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacket(uint8_t* dataToParse, uint8_t length);
 // payload: optional external payload buffer with data to be copied into new packet
 // length: size of external payload
 // result: lorawan_packet_t* which must be deleted again by user!
-lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length);    // must  be deleted again!
+lorawan_packet_t* LoRaWAN_NewPacket(const uint8_t* payload, uint8_t length);    // must  be deleted again!
 uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* buffer, uint8_t bufferSize);
 
 void LoRaWAN_DeletePacket(lorawan_packet_t* packet);

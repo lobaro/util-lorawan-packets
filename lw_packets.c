@@ -102,7 +102,7 @@ void LoRaWAN_PacketsUtil_Init(lwPackets_api_t api, lwPackets_state_t state) {
 	lib.initDone = true;
 }
 
-lorawan_packet_t* LoRaWAN_NewPacket(uint8_t* payload, uint8_t length) {
+lorawan_packet_t* LoRaWAN_NewPacket(const uint8_t* payload, uint8_t length) {
 	lobaroASSERT(lib.initDone);
 	lobaroASSERT(length <= 222); // max payload size of lorawan EU868 (see 2.1.6 lorawan 1.1 regional parameters)
 
@@ -162,7 +162,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 	}
 
 	// MHDR
-	outBuffer[pos++] = (packet->MHDR.type << 5) | (packet->MHDR.version);
+	outBuffer[pos++] = (packet->MHDR.type << 5u) | (packet->MHDR.version);
 
 	if (packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_UP
 		|| packet->MHDR.type == MTYPE_CONFIRMED_DATA_UP) {
@@ -196,8 +196,8 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		if (bufferSize < pos + 2) {
 			return 0;
 		}
-		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->devnonce & 0xff);
-		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->devnonce >> 8);
+		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->devnonce & 0xffu);
+		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->devnonce >> 8u);
 
 		lw_key.aeskey = lib.state.pDevCfg->appkey;
 		lw_key.in = outBuffer;
@@ -212,20 +212,20 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		pos += 4;
 		return pos;
 	} else if (packet->MHDR.type == MTYPE_JOIN_ACCEPT) {
-		// normally not needed by a lorawan device but included for completeness (issued by a network server only!)
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 0);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 8);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 16);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 0);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 8);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 16);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 0);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 8);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 16);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 24);
+		// normally not needed by a LoRaWAN device but included for completeness (issued by a network server only!)
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 0u);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 8u);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 16u);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 0u);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 8u);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 16u);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 0u);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 8u);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 16u);
+		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 24u);
 
 		uint8_t dlsettings = 0;
-		dlsettings |= ((uint8_t) packet->BODY.JoinAccept.DLsettings.Rx1DRoffset) << 4;
+		dlsettings |= ((uint8_t) packet->BODY.JoinAccept.DLsettings.Rx1DRoffset) << 4u;
 		dlsettings |= ((uint8_t) packet->BODY.JoinAccept.DLsettings.Rx2DR);
 		outBuffer[pos++] = dlsettings;
 
@@ -251,7 +251,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		memcpy(outBuffer + pos, mic.buf, 4);
 		pos += 4;
 
-		// encryp msg
+		// encrypt msg
 		uint8_t out[33];
 		lw_key.aeskey = lib.state.pDevCfg->appkey;
 		lw_key.in = outBuffer + 1; // skip MHDR byte
@@ -269,10 +269,10 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 	if (bufferSize < pos + 4) {
 		return 0;
 	}
-	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.DevAddr & 0xff);
-	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.DevAddr >> 8);
-	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.DevAddr >> 16);
-	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.DevAddr >> 24);
+	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.DevAddr & 0xffu);
+	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.DevAddr >> 8u);
+	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.DevAddr >> 16u);
+	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.DevAddr >> 24u);
 	lw_key.devaddr.data = packet->BODY.MACPayload.FHDR.DevAddr;
 
 	if (lw_key.link == LW_UPLINK) {
@@ -280,9 +280,9 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		if (bufferSize < pos + 1) {
 			return 0;
 		}
-		outBuffer[pos++] = (packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR << 7)
-						   | (packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADRACKReq << 6)
-						   | (packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK << 5)
+		outBuffer[pos++] = (packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR << 7u)
+						   | (packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADRACKReq << 6u)
+						   | (packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK << 5u)
 						   | (packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen);
 
 		optLen = packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen;
@@ -294,10 +294,10 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		if (bufferSize < pos + 1) {
 			return 0;
 		}
-		outBuffer[pos++] = (packet->BODY.MACPayload.FHDR.FCtrl.downlink.ADR << 7)
-						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.RFU << 6)
-						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.ACK << 5)
-						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.FPending << 4)
+		outBuffer[pos++] = (packet->BODY.MACPayload.FHDR.FCtrl.downlink.ADR << 7u)
+						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.RFU << 6u)
+						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.ACK << 5u)
+						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.FPending << 4u)
 						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen);
 
 		optLen = packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen;
@@ -310,8 +310,8 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 	if (bufferSize < pos + 2) {
 		return 0;
 	}
-	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.FCnt16 & 0xff);
-	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.FCnt16 >> 8);
+	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.FCnt16 & 0xffu);
+	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.FCnt16 >> 8u);
 	lw_key.fcnt32 = packet->BODY.MACPayload.FHDR.FCnt16;
 
 	if (optLen) {
