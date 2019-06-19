@@ -35,6 +35,10 @@
 // yet only used to throw compiler warning at important positons
 #define USE_LORAWAN_1_1  (0)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // LoRaWAN MAC header (MHDR)
 typedef enum {
 	MTYPE_JOIN_REQUEST = 0,
@@ -242,5 +246,9 @@ lorawan_packet_t* LoRaWAN_NewPacket(const uint8_t* payload, uint8_t length);    
 uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* buffer, uint8_t bufferSize);
 
 void LoRaWAN_DeletePacket(lorawan_packet_t* packet);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
