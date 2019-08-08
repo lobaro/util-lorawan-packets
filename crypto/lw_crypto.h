@@ -66,6 +66,14 @@ typedef struct{
 }lw_skey_seed_t;
 
 typedef struct{
+    uint8_t *nwkkey;
+    uint8_t *appkey;
+    lw_anonce_t jnonce;
+    uint8_t *joineui;
+    lw_dnonce_t dnonce;
+}lw_skey_seed_11_t;
+
+typedef struct{
     uint8_t *aeskey;
     uint8_t *in;
     uint16_t len;
@@ -74,12 +82,25 @@ typedef struct{
     uint32_t fcnt32;
 }lw_key_t;
 
+typedef struct{
+    uint8_t *snwksintkey;
+    uint8_t *fnwksintkey;
+    uint8_t *in;
+    uint16_t len;
+    lw_devaddr_t *devaddr;
+    uint32_t fcnt32;
+	uint16_t confFCnt;
+	uint8_t txDr;
+	uint8_t txCh;
+}lw_key_mic11_t;
+
 void lw_msg_mic(lw_mic_t* mic, lw_key_t *key);
+void lw_msg_mic11(lw_mic_t *mic, lw_key_mic11_t *key, void (*pFunction)(const char *, ...));
 void lw_join_mic(lw_mic_t* mic, lw_key_t *key);
 int lw_encrypt(uint8_t *out, lw_key_t *key);
 int lw_join_decrypt(uint8_t *out, lw_key_t *key);
 int lw_join_encrypt(uint8_t *out, lw_key_t *key);
 void lw_get_skeys(uint8_t *nwkskey, uint8_t *appskey, lw_skey_seed_t *seed);
-
+void lw_get_skeys_11(uint8_t *FNwkSntKey, uint8_t* SNwkSIntKey, uint8_t* NwkSEncKey, uint8_t *AppSKey, lw_skey_seed_11_t *seed);
 
 #endif /* DRV_LOBAWAN_LW_CRYPTO_H_ */

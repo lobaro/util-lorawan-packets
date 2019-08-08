@@ -33,7 +33,7 @@
 #include "lw_state.h"
 // not supported yet!
 // yet only used to throw compiler warning at important positons
-#define USE_LORAWAN_1_1  (0)
+#define USE_LORAWAN_1_1  (1)
 
 #ifdef __cplusplus
 extern "C" {
@@ -144,6 +144,7 @@ typedef struct {
 	uint8_t joinEUI[8]; // before LoRaWAN1.1 this was also called the appEUI
 	uint8_t devEUI[8];
 	uint16_t devnonce; // must be random for each join request
+	Lorawan_version_t version;
 } JoinRequest_t;
 
 // part of JoinAccept_t
@@ -174,8 +175,11 @@ typedef struct {
 	CFlist_t CFlist;                // 16 byte, optional list of network parameters (e.g. frequencies for EU868)
 	// total: 12+16=28
 	bool hasCFlist;
+	bool usesVersion11;
 
-	uint8_t derived_nwkskey[16];    // todo use malloc instead
+	uint8_t derived_fnwksintkey[16];    // todo use malloc instead?
+	uint8_t derived_snwksintkey[16];
+	uint8_t derived_nwksenckey[16];
 	uint8_t derived_appskey[16];
 } JoinAccept_t;
 
@@ -196,6 +200,12 @@ typedef enum {
 	LORAWAN_SwitchMode = 0b101, // any of the three above
 } Lorawan_PostAction_t;
 
+typedef struct {
+	uint16_t confFCnt;
+	uint8_t txDr;
+	uint8_t txCh;
+} lorawan_uplink_meta_t;
+
 // Complete PHYPayload packet
 typedef struct {
 	// user mutable fields
@@ -212,6 +222,10 @@ typedef struct {
 	DecodedMacResponse_t MacResp;  // Field to store decoded mac responses for the application
 
 	uint8_t PostTransmissionAction;  // Indicator for actions/changes that must be executed after the successful transmission/reception of a message
+
+	// information needed for 1.1 during message marshaling
+	Lorawan_version_t LorawanVersion;
+	lorawan_uplink_meta_t UplinkMeta;
 } lorawan_packet_t;
 
 // external function dependencies

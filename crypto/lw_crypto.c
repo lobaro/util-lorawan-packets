@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 #include <string.h> // memset
+#include <github.com/lobaro/util-lorawan-packets/module_logging.h>
 
 #include "lw_crypto.h"
 #include "cmac.h"
@@ -85,6 +86,56 @@ void lw_msg_mic(lw_mic_t* mic, lw_key_t *key)
 	AES_CMAC_Final(temp, &cmacctx);
 
 	memcpy(mic->buf, temp, LW_MIC_LEN);
+}
+
+void lw_msg_mic11(lw_mic_t *mic, lw_key_mic11_t *key, void (*log)(const char *, ...)) {
+	uint8_t b0[LW_KEY_LEN];
+	memset(b0, 0 , LW_KEY_LEN);
+	b0[0] = 0x49;
+// todo add LoRaWAN 1.1 support for b0[1..4]
+//  LoRaWAN 1.1 spec, 4.4:
+//  If the device is connected to a LoRaWAN1.1 Network Server and the ACK bit of the downlink frame is set,
+//	meaning this frame is acknowledging an uplink �confirmed� frame,
+//	then ConfFCnt is the frame counter value modulo 2^16 of the �confirmed� uplink frame that is being acknowledged.
+//	In all other cases ConfFCnt = 0x0000.
+	b0[1] = key->confFCnt & 0xffu;
+	b0[2] = key->confFCnt >> 0x8u;
+	b0[3] = key->txDr;
+	b0[4] = key->txCh;
+	b0[5] = 0x00;  // Dir = 0x00
+	lw_write_dw(b0+6, key->devaddr->data);  // 6 - 9
+	lw_write_dw(b0+10, key->fcnt32);  // 10-13
+	b0[14] = 0x00;
+	b0[15] = (uint8_t)key->len;
+
+	// cmacS = aes128_cmac(SNwkSIntKey, B1 | msg)
+	AES_CMAC_CTX cmacctx;
+	AES_CMAC_Init(&cmacctx);
+	AES_CMAC_SetKey(&cmacctx, key->snwksintkey);
+	AES_CMAC_Update(&cmacctx, b0, LW_KEY_LEN);
+	AES_CMAC_Update(&cmacctx, key->in, key->len);
+	uint8_t temp[LW_KEY_LEN];
+	AES_CMAC_Final(temp, &cmacctx);
+	memcpy(mic->buf, temp, 2);
+	log("b1: ");
+	for (int i=0; i<LW_KEY_LEN; i++) {
+		log("%02x", b0[i]);
+	}
+	log("\n");
+
+	// cmacF = aes128_cmac(FNwkSIntKey, B0 | msg)
+	b0[1] = b0[2] = b0[3] = b0[4] = 0x00;
+	AES_CMAC_Init(&cmacctx);
+	AES_CMAC_SetKey(&cmacctx, key->fnwksintkey);
+	AES_CMAC_Update(&cmacctx, b0, LW_KEY_LEN);
+	AES_CMAC_Update(&cmacctx, key->in, key->len);
+	AES_CMAC_Final(temp, &cmacctx);
+	memcpy(mic->buf + 2, temp, 2);
+	log("b0: ");
+	for (int i=0; i<LW_KEY_LEN; i++) {
+		log("%02x", b0[i]);
+	}
+	log("\n");
 }
 
 void lw_join_mic(lw_mic_t* mic, lw_key_t *key)
@@ -201,14 +252,14 @@ void lw_get_skeys(uint8_t *nwkskey, uint8_t *appskey, lw_skey_seed_t *seed)
 
     memset(&aesContext, 0, sizeof(aesContext));
     memset(b, 0, LW_KEY_LEN);
-    b[1] = (uint8_t)(seed->anonce.data>>0);
-    b[2] = (uint8_t)(seed->anonce.data>>8);
-    b[3] = (uint8_t)(seed->anonce.data>>16);
-    b[4] = (uint8_t)(seed->netid.data>>0);
-    b[5] = (uint8_t)(seed->netid.data>>8);
-    b[6] = (uint8_t)(seed->netid.data>>16);
-    b[7] = (uint8_t)(seed->dnonce.data>>0);
-    b[8] = (uint8_t)(seed->dnonce.data>>8);
+    b[1] = (uint8_t)(seed->anonce.data>>0u);
+    b[2] = (uint8_t)(seed->anonce.data>>8u);
+    b[3] = (uint8_t)(seed->anonce.data>>16u);
+    b[4] = (uint8_t)(seed->netid.data>>0u);
+    b[5] = (uint8_t)(seed->netid.data>>8u);
+    b[6] = (uint8_t)(seed->netid.data>>16u);
+    b[7] = (uint8_t)(seed->dnonce.data>>0u);
+    b[8] = (uint8_t)(seed->dnonce.data>>8u);
 
     b[0] = 0x01;
 	aes_set_key(seed->aeskey, LW_KEY_LEN, &aesContext);
@@ -217,4 +268,42 @@ void lw_get_skeys(uint8_t *nwkskey, uint8_t *appskey, lw_skey_seed_t *seed)
     b[0] = 0x02;
 	aes_set_key(seed->aeskey, LW_KEY_LEN, &aesContext);
     aes_encrypt( b, appskey, &aesContext );
+}
+
+void lw_get_skeys_11(uint8_t *FNwkSntKey, uint8_t* SNwkSIntKey, uint8_t* NwkSEncKey, uint8_t *AppSKey, lw_skey_seed_11_t *seed)
+{
+    aes_context aesContext;
+    uint8_t b[LW_KEY_LEN];
+
+    memset(&aesContext, 0, sizeof(aesContext));
+	memset(b, 0, LW_KEY_LEN);
+	b[1] = (uint8_t)(seed->jnonce.data>>0u);
+	b[2] = (uint8_t)(seed->jnonce.data>>8u);
+	b[3] = (uint8_t)(seed->jnonce.data>>16u);
+	b[4] = seed->joineui[7];
+	b[5] = seed->joineui[6];
+	b[6] = seed->joineui[5];
+	b[7] = seed->joineui[4];
+	b[8] = seed->joineui[3];
+	b[9] = seed->joineui[2];
+	b[10] = seed->joineui[1];
+	b[11] = seed->joineui[0];
+	b[12] = (uint8_t)(seed->dnonce.data>>0u);
+	b[13] = (uint8_t)(seed->dnonce.data>>8u);
+
+    b[0] = 0x01;
+	aes_set_key(seed->nwkkey, LW_KEY_LEN, &aesContext);
+    aes_encrypt(b, FNwkSntKey, &aesContext);
+
+	b[0] = 0x02;
+	aes_set_key(seed->appkey, LW_KEY_LEN, &aesContext);
+	aes_encrypt(b, AppSKey, &aesContext);
+
+    b[0] = 0x03;
+	aes_set_key(seed->nwkkey, LW_KEY_LEN, &aesContext);
+    aes_encrypt(b, SNwkSIntKey, &aesContext);
+
+    b[0] = 0x04;
+	aes_set_key(seed->nwkkey, LW_KEY_LEN, &aesContext);
+    aes_encrypt(b, NwkSEncKey, &aesContext);
 }

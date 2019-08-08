@@ -28,41 +28,61 @@
 
 #include <stdint.h>
 
+typedef enum {
+	LORAWAN_VERSION_UNKNOWN = 0x00,
+	LORAWAN_VERSION_1_0 = 0x10,
+	LORAWAN_VERSION_1_1 = 0x11,
+} Lorawan_version_t;
+
 // LoRaWAN device config / state parameter
 // todo add LoRaWAN 1.1 functionality
 typedef struct {
-	uint32_t DevAddr;
+	Lorawan_version_t lorawanVersion;
 
-	// 128 Bit keys
-	uint8_t nwkskey[16];
-	uint8_t appskey[16];
-	uint8_t appkey[16]; // OTAA only
+	// 4 Byte address assigned in OTAA Join or by ABP
+	uint32_t DevAddr;
 
 	// EUIs (used for OTAA join only)
 	// EUI are 8 bytes multi-octet fields and are transmitted as little endian. (LoRaWAN Specification)
 	// ->  if the EUI-64 is 70-B3-D5-7E-F0-00-48-9C it would be in the air as 9C-48-00...
 	// LoRaWAN_MarshalPacket will take care of this (make the little endian conversion)
-	uint8_t joinEUI[8]; // before LoRaWAN1.1 this was also called the appEUI
-	uint8_t devEUI[8];
+	uint8_t JoinEUI[8]; // before LoRaWAN1.1 this was also called the appEUI
+	uint8_t DevEUI[8];
+
+	// 128 Bit keys
+
+	// device root keys, used to derive the four session keys during join
+	// [spec:1.1:1333]
+	uint8_t AppKey[16];  // OTAA only
+	uint8_t NwkKey[16];  // OTAA only, since 1.1
+
+	// OTAA lifetime keys (derived from NwkKey) [spec:1.1:1366]
+	uint8_t JSIntKey[16];
+	uint8_t JSEncKey[16];
+
+	// session keys, set directly for ABP or set during join for OTAA [spec:1.1:1375]
+	uint8_t NwkSEncKey[16];
+	uint8_t SNwkSIntKey[16];
+	uint8_t FNwkSIntKey[16];
+	uint8_t AppSKey[16];
 
 	// OTAA only:
-	// used for/in join request msg (issued by client/sensor)
-	uint16_t devnonce; // must be random for each join request
+	// used for/in join request msg (issued by client/sensor) [spec:1.1:1500]
+	uint16_t DevNonce;  // counter starting from 0 and increments for every join request. SHALL NEVER be reused for given JoinEUI
+	// [spec:1.1:1550] sent by server, never repeats itself, SHALL be persisted in non-volatile memory.
+	uint16_t JoinNonce;  // aka AppNonce in LoRaWAN 1.0
 
-	// only used for/in join accept msg (issued by network server)
-	uint32_t appnonce; // aka joinnonce in lorawan 1.1, If the device is susceptible of being power cycled the JoinNonce SHALL be persistent
-	uint32_t netid;
+	// network identifier, 24 bits [Spec:1.1:1543]
+	uint32_t NetID;
 } Lorawan_devCfg_t;
 
 // LoRaWAN network control / state parameter
 typedef struct {
 	uint32_t FCntUp;
-	uint32_t AFCntDown;				// used for all other ports when the device operates as a LoRaWAN 1.1 or for all communications on LoRaWAN 1.0.1
-
-	// new in LoRaWAN 1.1 (not supported yet!)
-	uint32_t NFCntDown;				// used for MAC communication on port 0 and when the FPort field is missing (LoRaWAN 1.1 only)
-									// In the two counters scheme the NFCntDown is managed by the Network Server, whereas
-									// the AFCntDown is managed by the application server
+	uint32_t AFCntDwn;  // used for all other ports when the device operates as a LoRaWAN 1.1 or for all communications on LoRaWAN 1.0.1
+	uint32_t NFCntDwn;  // used for MAC communication on port 0 and when the FPort field is missing (LoRaWAN 1.1 only)
+						// In the two counters scheme the NFCntDown is managed by the Network Server, whereas
+						// the AFCntDown is managed by the application server
 } Lorawan_fcnt_t;
 
 #endif

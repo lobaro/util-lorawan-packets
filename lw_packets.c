@@ -40,6 +40,10 @@
 
 #include "module_logging.h"
 
+/// set to 1 to include marshaling/unmarshaling only needed on network servers
+/// set to 0 for devices, saves space
+#define LW_SUPPORT_NETWORK_SERVER 0
+
 typedef struct {
 	lwPackets_api_t api;
 	lwPackets_state_t state;
@@ -127,6 +131,8 @@ lorawan_packet_t* LoRaWAN_NewPacket(const uint8_t* payload, uint8_t length) {
 
 	// static field
 	packet->MHDR.version = LORAWAN_R1;
+
+	packet->LorawanVersion = LORAWAN_VERSION_1_0;
 	return packet;
 }
 
@@ -182,24 +188,24 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		if (bufferSize < pos + 8) {
 			return 0;
 		}
-		memcpy(outBuffer + pos, lib.state.pDevCfg->joinEUI, 8);
+		memcpy(outBuffer + pos, lib.state.pDevCfg->JoinEUI, 8);
 		convertInPlaceEUI64bufLittleEndian(outBuffer + pos);
 		pos += 8;
 
 		if (bufferSize < pos + 8) {
 			return 0;
 		}
-		memcpy(outBuffer + pos, lib.state.pDevCfg->devEUI, 8);
+		memcpy(outBuffer + pos, lib.state.pDevCfg->DevEUI, 8);
 		convertInPlaceEUI64bufLittleEndian(outBuffer + pos);
 		pos += 8;
 
 		if (bufferSize < pos + 2) {
 			return 0;
 		}
-		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->devnonce & 0xffu);
-		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->devnonce >> 8u);
+		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->DevNonce & 0xffu);
+		outBuffer[pos++] = (uint8_t) (lib.state.pDevCfg->DevNonce >> 8u);
 
-		lw_key.aeskey = lib.state.pDevCfg->appkey;
+		lw_key.aeskey = lib.state.pDevCfg->NwkKey;
 		lw_key.in = outBuffer;
 		lw_key.len = pos;
 		lw_join_mic(&mic, &lw_key);
@@ -210,7 +216,14 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		memcpy(outBuffer + pos, mic.buf, 4);
 		packet->MIC = mic.data;
 		pos += 4;
+
+		LOG_INFO("Lobawan| JoinReq: ");
+		for (int i=0; i<pos; i++) {
+			LOG_INFO("%02x", outBuffer[i]);
+		}
+		LOG_INFO("\n");
 		return pos;
+#if LW_SUPPORT_NETWORK_SERVER
 	} else if (packet->MHDR.type == MTYPE_JOIN_ACCEPT) {
 		// normally not needed by a LoRaWAN device but included for completeness (issued by a network server only!)
 		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 0u);
@@ -225,7 +238,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 24u);
 
 		uint8_t dlsettings = 0;
-		dlsettings |= ((uint8_t) packet->BODY.JoinAccept.DLsettings.Rx1DRoffset) << 4u;
+		dlsettings |= ((uint8_t) (packet->BODY.JoinAccept.DLsettings.Rx1DRoffset << 4u));
 		dlsettings |= ((uint8_t) packet->BODY.JoinAccept.DLsettings.Rx2DR);
 		outBuffer[pos++] = dlsettings;
 
@@ -244,7 +257,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		}
 
 		// calc mic
-		lw_key.aeskey = lib.state.pDevCfg->appkey;
+		lw_key.aeskey = lib.state.pDevCfg->AppKey;
 		lw_key.in = outBuffer;
 		lw_key.len = pos;
 		lw_join_mic(&mic, &lw_key);
@@ -253,16 +266,16 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 
 		// encrypt msg
 		uint8_t out[33];
-		lw_key.aeskey = lib.state.pDevCfg->appkey;
+		lw_key.aeskey = lib.state.pDevCfg->AppKey;
 		lw_key.in = outBuffer + 1; // skip MHDR byte
 		lw_key.len = pos - 1;
 		lw_join_encrypt(out, &lw_key);
 		memcpy(outBuffer + 1, out, lw_key.len);
 		return pos;
-
+#endif
 	} else {
-		return 0;
 		LOG_ERROR("unknown LoRaWAN msg type for marshaling!");
+		return 0;
 	}
 
 	// FHDR
@@ -303,7 +316,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		optLen = packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen;
 
 	} else {
-		lobaroASSERT("join accept, request not implemented yet! (we aren't a network server yet!)");
+		lobaroASSERT(false); // "join accept, request not implemented yet! (we aren't a network server yet!)");
 	}
 
 	// Little endian
@@ -329,9 +342,9 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		}
 		outBuffer[pos++] = packet->BODY.MACPayload.FPort;
 		if (packet->BODY.MACPayload.FPort == 0) {
-			lw_key.aeskey = lib.state.pDevCfg->nwkskey; // todo maybe add this as parameter?
+			lw_key.aeskey = lib.state.pDevCfg->NwkSEncKey; // todo maybe add this as parameter?
 		} else {
-			lw_key.aeskey = lib.state.pDevCfg->appskey;
+			lw_key.aeskey = lib.state.pDevCfg->AppSKey;
 		}
 
 		lw_key.in = packet->pPayload;
@@ -345,19 +358,53 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		}
 	}
 
+	LOG_INFO("Lobawan| total: ");
+	for (int i=0; i<pos; i++) {
+		LOG_INFO("%02x", outBuffer[i]);
+	}
+	LOG_INFO("\n");
+
 	// 4 byte MIC
 	if (bufferSize < pos + 4) {
 		return 0;
 	}
-	lw_key.aeskey = lib.state.pDevCfg->nwkskey;
-	lw_key.in = outBuffer;
-	lw_key.len = pos;
-
-	lw_msg_mic(&mic, &lw_key);
-	memcpy(outBuffer + pos, mic.buf, 4);
-	pos += 4;
-
+	if (packet->LorawanVersion == LORAWAN_VERSION_1_0) {
+		// v1.0 has MIC calculated with the only used key [spec:1.1:800]
+		lw_key.aeskey = lib.state.pDevCfg->FNwkSIntKey;
+		lw_key.in = outBuffer;
+		lw_key.len = pos;
+		lw_msg_mic(&mic, &lw_key);
+		memcpy(outBuffer + pos, mic.buf, 4);
+		pos += 4;
+	} else if (packet->LorawanVersion == LORAWAN_VERSION_1_1) {
+		// v1.1 uses forwarding and serving network key for MIC and uses a combination of both [spec:1.1:803]
+		lw_key_mic11_t lw_key11;
+		lw_key11.fnwksintkey = lib.state.pDevCfg->FNwkSIntKey;
+		lw_key11.snwksintkey = lib.state.pDevCfg->SNwkSIntKey;
+		lw_key11.devaddr = &lw_key.devaddr;  // just copy from other lw_key version
+		lw_key11.fcnt32 = lw_key.fcnt32;
+		lw_key11.confFCnt = packet->UplinkMeta.confFCnt;
+		lw_key11.txDr = packet->UplinkMeta.txDr;
+		lw_key11.txCh = packet->UplinkMeta.txCh;
+		lw_key11.in = outBuffer;
+		lw_key11.len = pos;
+		lw_msg_mic11(&mic, &lw_key11, lib.api.LogInfo);
+		memcpy(outBuffer + pos, mic.buf, 4);
+		pos += 4;
+		LOG_INFO("confFcnt:%d, txDr:%d, txCh:%d\n", lw_key11.confFCnt, lw_key11.txDr, lw_key11.txCh);
+	} else {
+		lobaroASSERT(false);
+	}
+	LOG_INFO("MIC: %08x\n", mic.data);
 	return pos;
+}
+
+static void logKey(const char *name, const uint8_t *key) {
+	LOG_INFO("KEY: %s=", name);
+	for (int i=0; i<16; i++) {
+		LOG_INFO("%02x", key[i]);
+	}
+	LOG_INFO("\n");
 }
 
 // Like LoRaWAN_NewPacket but takes a marshaled packet as input
@@ -393,9 +440,10 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 	}
 
 	switch (packet->MHDR.type) {
-
+#if LW_SUPPORT_NETWORK_SERVER
 		case MTYPE_UNCONFIRMED_DATA_UP:
 		case MTYPE_CONFIRMED_DATA_UP:
+#endif
 		case MTYPE_UNCONFIRMED_DATA_DOWN:
 		case MTYPE_CONFIRMED_DATA_DOWN:
 			idx = 1; // skip already parsed MHDR
@@ -416,14 +464,16 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			packet->BODY.MACPayload.FHDR.FCnt16 = parseUInt16LittleEndian(&(dataToParse[idx]));
 			idx += 2;
 
-			lw_key.aeskey = lib.state.pDevCfg->nwkskey;
+			lw_key.aeskey = lib.state.pDevCfg->NwkSEncKey;
 			lw_key.in = (uint8_t *) dataToParse;
 			lw_key.len = length - 4;
 			lw_key.devaddr.data = packet->BODY.MACPayload.FHDR.DevAddr;
 
 			uint32_t currFcnt32;
 			bool uplink = false;
-			if (packet->MHDR.type == MTYPE_CONFIRMED_DATA_UP || packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_UP) {
+#if LW_SUPPORT_NETWORK_SERVER
+
+		if (packet->MHDR.type == MTYPE_CONFIRMED_DATA_UP || packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_UP) {
 				uplink = true;
 				lw_key.link = LW_UPLINK;
 				currFcnt32 = lib.state.pFCntCtrl->FCntUp;
@@ -432,18 +482,27 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK = (fctrl & (1u << 5u)) >> 5u;
 				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ClassB = (fctrl & (1u << 4u)) >> 4u;
 				packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen = (fctrl & 0x0fu);
-
 			} else { // downlink
-				lw_key.link = LW_DOWNLINK;
-				currFcnt32 = lib.state.pFCntCtrl->AFCntDown;
-#if USE_LORAWAN_1_1 == 1
-#error "missing implementation for NFCntDown"
 #endif
+				lw_key.link = LW_DOWNLINK;
+				if (lib.state.pDevCfg->lorawanVersion >= LORAWAN_VERSION_1_1) {
+					// LoRaWAN 1.1 -- separate DL counters
+					if (packet->BODY.MACPayload.FPort == 0) {
+						currFcnt32 = lib.state.pFCntCtrl->NFCntDwn;
+					} else {
+						currFcnt32 = lib.state.pFCntCtrl->AFCntDwn;
+					}
+				} else {
+					// LoRaWAN 1.0 -- use only one counter
+					currFcnt32 = lib.state.pFCntCtrl->NFCntDwn;
+				}
 				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR = fctrl >> 7u;
 				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK = (fctrl & (1u << 5u)) >> 5u;
 				packet->BODY.MACPayload.FHDR.FCtrl.downlink.FPending = (fctrl & (1u << 4u)) >> 4u;
 				packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen = (fctrl & 0x0fu);
+#if LW_SUPPORT_NETWORK_SERVER
 			}
+#endif
 
 			uint16_t currFcnt32_LSB = (uint16_t) currFcnt32;
 			uint16_t currFcnt32_MSB = (uint16_t) (currFcnt32 >> 16u);
@@ -454,6 +513,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 
 			// calc & compare mic
 			packet->MIC = parseUInt32LittleEndian(dataToParse + length - 4);
+			lw_key.aeskey = lib.state.pDevCfg->SNwkSIntKey;
 			lw_msg_mic(&micCalc, &lw_key);
 
 			if (micCalc.data != packet->MIC) {    // check if mic is ok
@@ -477,9 +537,9 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 					packet->BODY.MACPayload.payloadLength = length - 4 - idx;
 
 					if (packet->BODY.MACPayload.FPort == 0) {
-						lw_key.aeskey = lib.state.pDevCfg->nwkskey;
+						lw_key.aeskey = lib.state.pDevCfg->NwkSEncKey;
 					} else {
-						lw_key.aeskey = lib.state.pDevCfg->appskey;
+						lw_key.aeskey = lib.state.pDevCfg->AppSKey;
 					}
 					lw_key.in = (uint8_t *) &(dataToParse[idx]);
 					lw_key.len = packet->BODY.MACPayload.payloadLength;
@@ -516,31 +576,72 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			} else if (length == 17 + 16) {
 				packet->BODY.JoinAccept.hasCFlist = true; // optional frequency list send by network server
 			} else {
-				LOG_ERROR("Lobawan: Got JoinRequest with unexspected length -> discarding incoming packet\n");
+				LOG_ERROR("Lobawan: Got JoinRequest with unexpected length -> discarding incoming packet\n");
 				lib.api.free(packet);
 				return NULL;
 			}
 
 			// (1) beside MHDR whole the message is encrypted -> decrypt it first
 			uint8_t decryptedData[33]; // temp buffer
-			lw_key.aeskey = lib.state.pDevCfg->appkey;
+			lw_key.aeskey = lib.state.pDevCfg->NwkKey;  // TODO: for rejoins, this uses JSEncKey
 			lw_key.in = dataToParse + 1;  // skip MHDR
 			lw_key.len = length - 1;
 			decryptedData[0] = dataToParse[0]; // MHDR can be copied as it's not encrypted
 			int pl_len = lw_join_decrypt(decryptedData + 1, &lw_key);
 
 			if (pl_len <= 0) {
-				LOG_ERROR("Lobawan: Can't decrypt JoinRequest\n");
+				LOG_ERROR("Lobawan: Can't decrypt JoinAccept\n");
 				lib.api.free(packet);
 				return NULL;
 			}
 
+			// (1.5) check OptNeg ahead of MIC to know if to use LoRaWAN 1.0 or 1.1:
+			bool useVersion11 = ((decryptedData[11] & 0x80u) >> 7u);
+
+			LOG_INFO("Lobawan| DeCrypt: ");
+			for (int i=0; i<length; i++) {
+				LOG_INFO("%02x", decryptedData[i]);
+			}
+			LOG_INFO("\n");
+
 			// (2) check MIC
 			packet->MIC = parseUInt32LittleEndian(decryptedData + length - 4);
-			lw_key.aeskey = lib.state.pDevCfg->appkey;
-			lw_key.in = decryptedData;
-			lw_key.len = length - 4; // skip MIC
-			lw_join_mic(&micCalc, &lw_key);
+			if (useVersion11) {
+				LOG_INFO("v1.1\n");
+				// JoinReqType | JoinEUI | DevNonce | MHDR | JoinNonce | NetID | DevAddr | DLSettings | RxDelay | CFList
+				uint8_t bb[48];  // length is 17 or 33, +11 -4 -> 40 -> 48 for padding
+				memset(bb, 0, 48);
+				bb[0] = 0xff;  // TODO: this is for join - add rejoin requests
+				memcpy(bb + 1, lib.state.pDevCfg->JoinEUI, 8);
+				convertInPlaceEUI64bufLittleEndian(bb + 1);
+				bb[9] = lib.state.pDevCfg->DevNonce & 0xffu;  // TODO: is this mixed up?
+				bb[10] = lib.state.pDevCfg->DevNonce >> 8u;
+//				bb[10] = lib.state.pDevCfg->DevNonce & 0xffu;  // TODO: is this mixed up?
+//				bb[9] = lib.state.pDevCfg->DevNonce >> 8u;
+				memcpy(bb + 11, decryptedData, length - 4);
+				lw_key.aeskey = lib.state.pDevCfg->JSIntKey;
+				lw_key.in = bb;
+				lw_key.len = 11 + length - 4; // skip MIC
+				lw_join_mic(&micCalc, &lw_key);
+				LOG_INFO("Lobawan| MicBuf: ");
+				for (int i=0; i<lw_key.len; i++) {
+					LOG_INFO("%02x", lw_key.in[i]);
+				}
+				LOG_INFO("\n");
+				LOG_INFO("Lobawan| MicKey: ");
+				for (int i=0; i<16; i++) {
+					LOG_INFO("%02x", lw_key.aeskey[i]);
+				}
+				LOG_INFO("\n");
+				// TODO: does this work?
+			} else {
+				LOG_INFO("v1.0\n");
+				lw_key.aeskey = lib.state.pDevCfg->NwkKey;
+				lw_key.in = decryptedData;
+				lw_key.len = length - 4; // skip MIC
+				lw_join_mic(&micCalc, &lw_key);
+			}
+			LOG_INFO("Lobawan| MIC: calc=%08x, pack=%08x\n", micCalc.data, packet->MIC);
 			if (micCalc.data != packet->MIC) {    // check if mic is ok
 				LOG_ERROR("Join accept mic error -> discarding incoming packet\n");
 				lib.api.free(packet);
@@ -550,18 +651,18 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			// (3) parse fields
 			idx = 1; // skip already parsed MHDR
 			packet->BODY.JoinAccept.JoinNonce = decryptedData[idx++];
-			packet->BODY.JoinAccept.JoinNonce |= ((uint32_t) decryptedData[idx++] << 8);
-			packet->BODY.JoinAccept.JoinNonce |= ((uint32_t) decryptedData[idx++] << 16);
+			packet->BODY.JoinAccept.JoinNonce |= ((uint32_t) decryptedData[idx++] << 8u);
+			packet->BODY.JoinAccept.JoinNonce |= ((uint32_t) decryptedData[idx++] << 16u);
 
 			packet->BODY.JoinAccept.HomeNetID = decryptedData[idx++];
-			packet->BODY.JoinAccept.HomeNetID |= ((uint32_t) decryptedData[idx++] << 8);
-			packet->BODY.JoinAccept.HomeNetID |= ((uint32_t) decryptedData[idx++] << 16);
+			packet->BODY.JoinAccept.HomeNetID |= ((uint32_t) decryptedData[idx++] << 8u);
+			packet->BODY.JoinAccept.HomeNetID |= ((uint32_t) decryptedData[idx++] << 16u);
 
 			packet->BODY.JoinAccept.DevAddr = parseUInt32LittleEndian(&(decryptedData[idx]));
 			idx += 4;
-			packet->BODY.JoinAccept.DLsettings.OptNeg = ((decryptedData[idx] & 0x80) >> 7);
-			packet->BODY.JoinAccept.DLsettings.Rx1DRoffset = ((decryptedData[idx] & 0x70) >> 4);
-			packet->BODY.JoinAccept.DLsettings.Rx2DR = (decryptedData[idx] & 0x0f);
+			packet->BODY.JoinAccept.DLsettings.OptNeg = ((decryptedData[idx] & 0x80u) >> 7u);
+			packet->BODY.JoinAccept.DLsettings.Rx1DRoffset = ((decryptedData[idx] & 0x70u) >> 4u);
+			packet->BODY.JoinAccept.DLsettings.Rx2DR = (decryptedData[idx] & 0x0fu);
 			idx++;
 
 			packet->BODY.JoinAccept.RxDelay = decryptedData[idx++];
@@ -575,16 +676,39 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			}
 
 			// (4) derive keys
-			lw_skey_seed_t lw_skey_seed;
-			lw_skey_seed.aeskey = lib.state.pDevCfg->appkey;
-			lw_skey_seed.anonce.data = packet->BODY.JoinAccept.JoinNonce;
-			lw_skey_seed.netid.data = packet->BODY.JoinAccept.HomeNetID;
-			lw_skey_seed.dnonce.data = lib.state.pDevCfg->devnonce;
-			lw_get_skeys(packet->BODY.JoinAccept.derived_nwkskey, packet->BODY.JoinAccept.derived_appskey, &lw_skey_seed); // todo maybe add as special "payload" to packet?
+			if (packet->BODY.JoinAccept.DLsettings.OptNeg) {
+				// LoRaWAN v1.1
+				lw_skey_seed_11_t lw_skey_seed;
+				lw_skey_seed.nwkkey = lib.state.pDevCfg->NwkKey;
+				lw_skey_seed.appkey = lib.state.pDevCfg->AppKey;
+				lw_skey_seed.jnonce.data = packet->BODY.JoinAccept.JoinNonce;
+				lw_skey_seed.joineui = lib.state.pDevCfg->JoinEUI;
+				lw_skey_seed.dnonce.data = lib.state.pDevCfg->DevNonce;
+				lw_get_skeys_11(
+						packet->BODY.JoinAccept.derived_fnwksintkey,
+						packet->BODY.JoinAccept.derived_snwksintkey,
+						packet->BODY.JoinAccept.derived_nwksenckey,
+						packet->BODY.JoinAccept.derived_appskey,
+						&lw_skey_seed); // todo maybe add as special "payload" to packet?
+				packet->BODY.JoinAccept.usesVersion11 = true;
+				logKey("NwkSEncKey ", packet->BODY.JoinAccept.derived_nwksenckey);
+				logKey("SNwkSIntKey", packet->BODY.JoinAccept.derived_snwksintkey);
+				logKey("FNwkSIntKey", packet->BODY.JoinAccept.derived_fnwksintkey);
+				logKey("AppSKey    ", packet->BODY.JoinAccept.derived_appskey);
+			} else {
+				lw_skey_seed_t lw_skey_seed;
+				lw_skey_seed.aeskey = lib.state.pDevCfg->NwkKey;
+				lw_skey_seed.anonce.data = packet->BODY.JoinAccept.JoinNonce;
+				lw_skey_seed.netid.data = packet->BODY.JoinAccept.HomeNetID;
+				lw_skey_seed.dnonce.data = lib.state.pDevCfg->DevNonce;
+				lw_get_skeys(packet->BODY.JoinAccept.derived_fnwksintkey, packet->BODY.JoinAccept.derived_appskey,
+							 &lw_skey_seed); // todo maybe add as special "payload" to packet?
+				packet->BODY.JoinAccept.usesVersion11 = false;
+			}
 
 			// app should adjust nwkskey, appskey, devAdr, netId, appnounce
 			return packet;
-
+#if LW_SUPPORT_NETWORK_SERVER
 		case MTYPE_JOIN_REQUEST:
 			// normally NOT needed to parse by a lorawan device but included for completeness (Unmarshalled by network servers only!)
 			if (length != 23) { // MHDR(1) + [APPEUI(8) + DEVEUI(8) + DEVNOUNCE(2)] + MIC(4)
@@ -595,7 +719,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 
 			packet->MIC = parseUInt32LittleEndian(dataToParse + length - 4);
 
-			lw_key.aeskey = lib.state.pDevCfg->appkey;
+			lw_key.aeskey = lib.state.pDevCfg->NwkKey;
 			lw_key.in = dataToParse;
 			lw_key.len = length - 4;
 			lw_join_mic(&micCalc, &lw_key);
@@ -616,7 +740,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			packet->BODY.JoinRequest.devnonce = parseUInt16LittleEndian(&(dataToParse[idx]));
 			//idx += 2;
 			return packet;
-
+#endif
 		default:
 			LOG_ERROR("Lobawan: unknown MHDR type -> discarding incoming packet\n");
 			lib.api.free(packet);
