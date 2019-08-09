@@ -144,7 +144,6 @@ typedef struct {
 	uint8_t joinEUI[8]; // before LoRaWAN1.1 this was also called the appEUI
 	uint8_t devEUI[8];
 	uint16_t devnonce; // must be random for each join request
-	Lorawan_version_t version;
 } JoinRequest_t;
 
 // part of JoinAccept_t
@@ -224,7 +223,6 @@ typedef struct {
 	uint8_t PostTransmissionAction;  // Indicator for actions/changes that must be executed after the successful transmission/reception of a message
 
 	// information needed for 1.1 during message marshaling
-	Lorawan_version_t LorawanVersion;
 	lorawan_uplink_meta_t UplinkMeta;
 } lorawan_packet_t;
 

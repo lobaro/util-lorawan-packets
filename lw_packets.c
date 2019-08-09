@@ -131,8 +131,6 @@ lorawan_packet_t* LoRaWAN_NewPacket(const uint8_t* payload, uint8_t length) {
 
 	// static field
 	packet->MHDR.version = LORAWAN_R1;
-
-	packet->LorawanVersion = LORAWAN_VERSION_1_0;
 	return packet;
 }
 
@@ -217,11 +215,6 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		packet->MIC = mic.data;
 		pos += 4;
 
-		LOG_INFO("Lobawan| JoinReq: ");
-		for (int i=0; i<pos; i++) {
-			LOG_INFO("%02x", outBuffer[i]);
-		}
-		LOG_INFO("\n");
 		return pos;
 #if LW_SUPPORT_NETWORK_SERVER
 	} else if (packet->MHDR.type == MTYPE_JOIN_ACCEPT) {
@@ -299,7 +292,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 						   | (packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen);
 
 		optLen = packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen;
-
+#if LW_SUPPORT_NETWORK_SERVER
 	} else if (packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_DOWN
 			   || packet->MHDR.type == MTYPE_CONFIRMED_DATA_DOWN) {
 
@@ -314,7 +307,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen);
 
 		optLen = packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen;
-
+#endif
 	} else {
 		lobaroASSERT(false); // "join accept, request not implemented yet! (we aren't a network server yet!)");
 	}
@@ -325,7 +318,27 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 	}
 	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.FCnt16 & 0xffu);
 	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.FCnt16 >> 8u);
-	lw_key.fcnt32 = packet->BODY.MACPayload.FHDR.FCnt16;
+	//lw_key.fcnt32 = packet->BODY.MACPayload.FHDR.FCnt16;
+	lobaroASSERT((lib.state.pFCntCtrl->FCntUp & 0xffff) == packet->BODY.MACPayload.FHDR.FCnt16);
+	lw_key.fcnt32 = lib.state.pFCntCtrl->FCntUp;
+
+	if (lib.state.pDevCfg->LorawanVersion >= LORAWAN_VERSION_1_1) {
+		LOG_INFO("v1.1, enc FOpts\n");
+		// FOpts are only encrypted starting v1.1 (spec fails to state no encryption for 1.0)
+		// see https://lora-alliance.org/sites/default/files/2019-08/00001.002.00001.001.cr-fcntdwn-usage-in-fopts-encryption-v2-r1.pdf
+		encrypt_fopts(
+				packet->BODY.MACPayload.FHDR.FOpts,
+				packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen,
+				lib.state.pDevCfg->NwkSEncKey,
+				false,
+				true,
+				&lw_key.devaddr,
+				lw_key.fcnt32,
+				lib.api.LogError
+		);
+	} else {
+		LOG_INFO("v1.0, DON'T FOpts\n");
+	}
 
 	if (optLen) {
 		if (bufferSize < pos + optLen) {
@@ -358,17 +371,11 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		}
 	}
 
-	LOG_INFO("Lobawan| total: ");
-	for (int i=0; i<pos; i++) {
-		LOG_INFO("%02x", outBuffer[i]);
-	}
-	LOG_INFO("\n");
-
 	// 4 byte MIC
 	if (bufferSize < pos + 4) {
 		return 0;
 	}
-	if (packet->LorawanVersion == LORAWAN_VERSION_1_0) {
+	if (lib.state.pDevCfg->LorawanVersion == LORAWAN_VERSION_1_0) {
 		// v1.0 has MIC calculated with the only used key [spec:1.1:800]
 		lw_key.aeskey = lib.state.pDevCfg->FNwkSIntKey;
 		lw_key.in = outBuffer;
@@ -376,7 +383,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		lw_msg_mic(&mic, &lw_key);
 		memcpy(outBuffer + pos, mic.buf, 4);
 		pos += 4;
-	} else if (packet->LorawanVersion == LORAWAN_VERSION_1_1) {
+	} else if (lib.state.pDevCfg->LorawanVersion == LORAWAN_VERSION_1_1) {
 		// v1.1 uses forwarding and serving network key for MIC and uses a combination of both [spec:1.1:803]
 		lw_key_mic11_t lw_key11;
 		lw_key11.fnwksintkey = lib.state.pDevCfg->FNwkSIntKey;
@@ -388,14 +395,12 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		lw_key11.txCh = packet->UplinkMeta.txCh;
 		lw_key11.in = outBuffer;
 		lw_key11.len = pos;
-		lw_msg_mic11(&mic, &lw_key11, lib.api.LogInfo);
+		lw_msg_mic11(&mic, &lw_key11);
 		memcpy(outBuffer + pos, mic.buf, 4);
 		pos += 4;
-		LOG_INFO("confFcnt:%d, txDr:%d, txCh:%d\n", lw_key11.confFCnt, lw_key11.txDr, lw_key11.txCh);
 	} else {
 		lobaroASSERT(false);
 	}
-	LOG_INFO("MIC: %08x\n", mic.data);
 	return pos;
 }
 
@@ -434,9 +439,19 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 	idx++;
 
 	if (packet->MHDR.type == MTYPE_PROPRIETARY) {
-		LOG_ERROR("Lobawan: Got proprietary MHDR -> discard msg\n");
+		LOG_ERROR("Lobawan| Got proprietary MHDR -> discard msg\n");
 		lib.api.free(packet);
 		return NULL;
+	}
+
+	if (address != 0) {
+		// receive for specific address can never be a join accept
+		if (packet->MHDR.type==MTYPE_JOIN_ACCEPT) {
+			LOG_INFO("Lobawan| ignoring join accept\n");
+			lib.api.free(packet);
+			return NULL;
+		}
+
 	}
 
 	switch (packet->MHDR.type) {
@@ -452,31 +467,51 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			packet->BODY.MACPayload.FHDR.DevAddr = parseUInt32LittleEndian(&(dataToParse[idx]));
 			idx += 4;
 			// if we got an address (<>0), we only try to unmarshal messages for that address
-			if ((address != 0) && (packet->BODY.MACPayload.FHDR.DevAddr != address)) {
-				// that message is not for us, ignore it
-				LOG_ERROR("Lobawan: Received msg for addr %08x (not %08x), ignoring\n", packet->BODY.MACPayload.FHDR.DevAddr, address);
-				lib.api.free(packet);
-				return NULL;
+			if (address != 0) {
+				if (packet->BODY.MACPayload.FHDR.DevAddr == address) {
+					LOG_ERROR("Lobawan: Received msg for addr %08x, that's me\n", address);
+				} else {
+					// that message is not for us, ignore it
+					LOG_ERROR("Lobawan: Received msg for addr %08x (I am %08x), ignoring\n", packet->BODY.MACPayload.FHDR.DevAddr, address);
+					lib.api.free(packet);
+					return NULL;
+				}
 			}
+
+			// Port is needed to pick correct counter and key, so we do this first:
+			packet->BODY.MACPayload.FPort = 0;
+#define FCTRLPOS 5
+			if (length > FCTRLPOS) {
+				uint8_t foptslen = dataToParse[FCTRLPOS] & 0xfu;
+				uint8_t portPos = 1 + 4 + 1 + 2 + foptslen;  // MHDR(1) + DevAddr(4) + FCtrl(1) + FCnt(2) + FOpts(foptslen)
+				if (length - 4 > portPos) {  // -4 Bytes for trailing MIC
+					packet->BODY.MACPayload.FPort = dataToParse[portPos];
+				}
+			}
+			LOG_INFO("PORT: %d\n", packet->BODY.MACPayload.FPort);
 
 			uint8_t fctrl = dataToParse[idx];
 			idx++;
 			packet->BODY.MACPayload.FHDR.FCnt16 = parseUInt16LittleEndian(&(dataToParse[idx]));
 			idx += 2;
 
-			lw_key.aeskey = lib.state.pDevCfg->NwkSEncKey;
+			if (packet->BODY.MACPayload.FPort == 0) {
+				lw_key.aeskey = lib.state.pDevCfg->NwkSEncKey;
+			} else {
+				lw_key.aeskey = lib.state.pDevCfg->AppSKey;
+			}
 			lw_key.in = (uint8_t *) dataToParse;
 			lw_key.len = length - 4;
 			lw_key.devaddr.data = packet->BODY.MACPayload.FHDR.DevAddr;
 
-			uint32_t currFcnt32;
+			uint32_t currFCnt32;
 			bool uplink = false;
 #if LW_SUPPORT_NETWORK_SERVER
 
 		if (packet->MHDR.type == MTYPE_CONFIRMED_DATA_UP || packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_UP) {
 				uplink = true;
 				lw_key.link = LW_UPLINK;
-				currFcnt32 = lib.state.pFCntCtrl->FCntUp;
+				currFCnt32 = lib.state.pFCntCtrl->FCntUp;
 				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR = fctrl >> 7u;
 				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADRACKReq = (fctrl & (1u << 6u)) >> 6u;
 				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK = (fctrl & (1u << 5u)) >> 5u;
@@ -485,31 +520,42 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			} else { // downlink
 #endif
 				lw_key.link = LW_DOWNLINK;
-				if (lib.state.pDevCfg->lorawanVersion >= LORAWAN_VERSION_1_1) {
+				bool useAFCntDwn = false;
+				if (lib.state.pDevCfg->LorawanVersion >= LORAWAN_VERSION_1_1) {
 					// LoRaWAN 1.1 -- separate DL counters
 					if (packet->BODY.MACPayload.FPort == 0) {
-						currFcnt32 = lib.state.pFCntCtrl->NFCntDwn;
+						LOG_INFO("NFCntDwn: %d\n", lib.state.pFCntCtrl->NFCntDwn);
+						currFCnt32 = lib.state.pFCntCtrl->NFCntDwn;
 					} else {
-						currFcnt32 = lib.state.pFCntCtrl->AFCntDwn;
+						LOG_INFO("AFCntDwn: %d\n", lib.state.pFCntCtrl->AFCntDwn);
+						currFCnt32 = lib.state.pFCntCtrl->AFCntDwn;
+						useAFCntDwn = true;
 					}
 				} else {
 					// LoRaWAN 1.0 -- use only one counter
-					currFcnt32 = lib.state.pFCntCtrl->NFCntDwn;
+					LOG_INFO("FCntDwn: %d\n", lib.state.pFCntCtrl->NFCntDwn);
+					currFCnt32 = lib.state.pFCntCtrl->NFCntDwn;
 				}
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR = fctrl >> 7u;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK = (fctrl & (1u << 5u)) >> 5u;
+				packet->BODY.MACPayload.FHDR.FCtrl.downlink.ADR = fctrl >> 7u;
+				packet->BODY.MACPayload.FHDR.FCtrl.downlink.ACK = (fctrl & (1u << 5u)) >> 5u;
 				packet->BODY.MACPayload.FHDR.FCtrl.downlink.FPending = (fctrl & (1u << 4u)) >> 4u;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen = (fctrl & 0x0fu);
+				packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen = (fctrl & 0x0fu);
 #if LW_SUPPORT_NETWORK_SERVER
 			}
 #endif
 
-			uint16_t currFcnt32_LSB = (uint16_t) currFcnt32;
-			uint16_t currFcnt32_MSB = (uint16_t) (currFcnt32 >> 16u);
-			if (packet->BODY.MACPayload.FHDR.FCnt16 < currFcnt32_LSB) {
-				currFcnt32_MSB++;
+			// currFCnt32 holds the next expected FCnt for received packet (since the first FCnt is 0)
+			uint16_t currFCnt32_LSB = (uint16_t) currFCnt32;
+			uint16_t currFCnt32_MSB = (uint16_t) (currFCnt32 >> 16u);
+			LOG_INFO("Lobawan| counter: %cFCntDwn, current: %08x\n", (useAFCntDwn?'A':'N'), currFCnt32);
+			if (packet->BODY.MACPayload.FHDR.FCnt16 < currFCnt32_LSB) {
+				// this is either a replay or a 16bit overflow
+				// we expect overflow, replays will have invalid MIC after overflow (since 32bit counter is different)
+				currFCnt32_MSB++;
 			}
-			lw_key.fcnt32 = (((uint32_t) currFcnt32_MSB) << 16u) + packet->BODY.MACPayload.FHDR.FCnt16;
+			currFCnt32 = (((uint32_t) currFCnt32_MSB) << 16u) + packet->BODY.MACPayload.FHDR.FCnt16;
+			lw_key.fcnt32 = currFCnt32;
+			LOG_INFO("Lobawan| FCnt16: %04x, FCnt32: %08x\n", packet->BODY.MACPayload.FHDR.FCnt16, currFCnt32);
 
 			// calc & compare mic
 			packet->MIC = parseUInt32LittleEndian(dataToParse + length - 4);
@@ -522,14 +568,37 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 				return NULL;
 			}
 
-			memcpy(packet->BODY.MACPayload.FHDR.FOpts, &(dataToParse[idx]), packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen);
-			idx += packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen;
+			// write back counter only if MIC was correct, otherwise replay attacks could corrupt our counter
+			// counter is set to next expected value
+			if (useAFCntDwn) {
+				lib.state.pFCntCtrl->AFCntDwn = currFCnt32 + 1;
+			} else {
+				lib.state.pFCntCtrl->NFCntDwn = currFCnt32 + 1;
+			}
+
+			LOG_INFO("Lobawan| FOptsLen: %d\n", packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen);
+			memcpy(packet->BODY.MACPayload.FHDR.FOpts, &(dataToParse[idx]), packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen);
+			if (lib.state.pDevCfg->LorawanVersion >= LORAWAN_VERSION_1_1) {
+				// TODO: this only for 1.1? 1.1 spec is not specific about this, but i cannot find encryption of FOpts in 1.0
+				encrypt_fopts(
+						packet->BODY.MACPayload.FHDR.FOpts,
+						packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen,
+						lib.state.pDevCfg->NwkSEncKey,
+						useAFCntDwn,
+						false,
+						&lw_key.devaddr,
+						currFCnt32,
+						lib.api.LogError
+				);
+			}
+			idx += packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen;
+
 
 			// copy other fields & decrypt payload (if present)
-			uint8_t lengthWithoutPayloadAndPort = (1 + 7 + packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen + 4);  // MHDR(1) + FHDR(7) + FHDR_OPTS(x) + MIC (4)
-
+			uint8_t lengthWithoutPayloadAndPort = (1 + 7 + packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen + 4);  // MHDR(1) + FHDR(7) + FHDR_OPTS(x) + MIC (4)
 			if (length > lengthWithoutPayloadAndPort) {
-				packet->BODY.MACPayload.FPort = dataToParse[idx++];
+				// skip port, we did that at the beginning:
+				idx++;
 				if (length == lengthWithoutPayloadAndPort + 1) { // no payload, but port
 					packet->BODY.MACPayload.payloadLength = 0;
 					LOG_ERROR("Lobawan: warn packet with port but without payload\n");

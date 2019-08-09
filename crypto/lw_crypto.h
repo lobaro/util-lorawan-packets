@@ -21,6 +21,8 @@
  SOFTWARE.
 
 *****************************************************************************/
+#include <stdbool.h>
+
 #ifndef DRV_LOBAWAN_LW_CRYPTO_H_
 #define DRV_LOBAWAN_LW_CRYPTO_H_
 
@@ -95,12 +97,15 @@ typedef struct{
 }lw_key_mic11_t;
 
 void lw_msg_mic(lw_mic_t* mic, lw_key_t *key);
-void lw_msg_mic11(lw_mic_t *mic, lw_key_mic11_t *key, void (*pFunction)(const char *, ...));
+void lw_msg_mic11(lw_mic_t *mic, lw_key_mic11_t *key);
 void lw_join_mic(lw_mic_t* mic, lw_key_t *key);
 int lw_encrypt(uint8_t *out, lw_key_t *key);
 int lw_join_decrypt(uint8_t *out, lw_key_t *key);
 int lw_join_encrypt(uint8_t *out, lw_key_t *key);
 void lw_get_skeys(uint8_t *nwkskey, uint8_t *appskey, lw_skey_seed_t *seed);
 void lw_get_skeys_11(uint8_t *FNwkSntKey, uint8_t* SNwkSIntKey, uint8_t* NwkSEncKey, uint8_t *AppSKey, lw_skey_seed_11_t *seed);
+
+void encrypt_fopts(uint8_t *data, uint8_t dataLen, uint8_t *key, bool aFCntDown, bool isUplink, lw_devaddr_t *devaddr,
+				   uint32_t cnt, void (*pFunction)(const char *, ...));
 
 #endif /* DRV_LOBAWAN_LW_CRYPTO_H_ */

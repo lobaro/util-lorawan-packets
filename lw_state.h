@@ -37,7 +37,8 @@ typedef enum {
 // LoRaWAN device config / state parameter
 // todo add LoRaWAN 1.1 functionality
 typedef struct {
-	Lorawan_version_t lorawanVersion;
+	// this stores the version actually used (after OTAA negotiation)
+	Lorawan_version_t LorawanVersion;
 
 	// 4 Byte address assigned in OTAA Join or by ABP
 	uint32_t DevAddr;
