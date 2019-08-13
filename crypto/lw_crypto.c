@@ -113,11 +113,6 @@ void lw_msg_mic11(lw_mic_t *mic, lw_key_mic11_t *key) {
 	uint8_t temp[LW_KEY_LEN];
 	AES_CMAC_Final(temp, &cmacctx);
 	memcpy(mic->buf, temp, 2);
-/*	log("b1: ");
-	for (int i=0; i<LW_KEY_LEN; i++) {
-		log("%02x", b0[i]);
-	}
-	log("\n");*/
 
 	// cmacF = aes128_cmac(FNwkSIntKey, B0 | msg)
 	b0[1] = b0[2] = b0[3] = b0[4] = 0x00;
@@ -127,11 +122,6 @@ void lw_msg_mic11(lw_mic_t *mic, lw_key_mic11_t *key) {
 	AES_CMAC_Update(&cmacctx, key->in, key->len);
 	AES_CMAC_Final(temp, &cmacctx);
 	memcpy(mic->buf + 2, temp, 2);
-	/*log("b0: ");
-	for (int i=0; i<LW_KEY_LEN; i++) {
-		log("%02x", b0[i]);
-	}
-	log("\n");*/
 }
 
 void lw_join_mic(lw_mic_t* mic, lw_key_t *key)
@@ -314,7 +304,7 @@ void lw_get_skeys_11(uint8_t *FNwkSntKey, uint8_t* SNwkSIntKey, uint8_t* NwkSEnc
  * @param cnt
  */
 void encrypt_fopts(uint8_t *data, uint8_t dataLen, uint8_t *key, bool aFCntDown, bool isUplink, lw_devaddr_t *devaddr,
-				   uint32_t cnt, void (*log)(const char *, ...)) {
+				   uint32_t cnt) {
 	lobaroASSERT(dataLen <= 15);
 	uint8_t A[16];
 	A[0] = 0x01;
@@ -326,17 +316,6 @@ void encrypt_fopts(uint8_t *data, uint8_t dataLen, uint8_t *key, bool aFCntDown,
 	A[14] = 0x00;
 	A[15] = 0x01;
 
-	log("data: ");
-	for (int i=0; i<dataLen; i++) {
-		log("%02x", data[i]);
-	}
-	log("\n");
-	log("A1:   ");
-	for (int i=0; i<16; i++) {
-		log("%02x", A[i]);
-	}
-	log("\n");
-
 	aes_context aesContext;
 	aes_set_key(key, LW_KEY_LEN, &aesContext);
 	uint8_t S[16];
@@ -345,10 +324,4 @@ void encrypt_fopts(uint8_t *data, uint8_t dataLen, uint8_t *key, bool aFCntDown,
 	for (uint8_t i=0; i<dataLen; i++) {
 		data[i] ^= S[i];
 	}
-
-	log("data: ");
-	for (int i=0; i<dataLen; i++) {
-		log("%02x", data[i]);
-	}
-	log("\n");
 }

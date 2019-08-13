@@ -105,7 +105,6 @@ int lw_join_encrypt(uint8_t *out, lw_key_t *key);
 void lw_get_skeys(uint8_t *nwkskey, uint8_t *appskey, lw_skey_seed_t *seed);
 void lw_get_skeys_11(uint8_t *FNwkSntKey, uint8_t* SNwkSIntKey, uint8_t* NwkSEncKey, uint8_t *AppSKey, lw_skey_seed_11_t *seed);
 
-void encrypt_fopts(uint8_t *data, uint8_t dataLen, uint8_t *key, bool aFCntDown, bool isUplink, lw_devaddr_t *devaddr,
-				   uint32_t cnt, void (*pFunction)(const char *, ...));
+void encrypt_fopts(uint8_t *data, uint8_t dataLen, uint8_t *key, bool aFCntDown, bool isUplink, lw_devaddr_t *devaddr, uint32_t cnt);
 
 #endif /* DRV_LOBAWAN_LW_CRYPTO_H_ */
