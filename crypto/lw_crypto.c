@@ -36,10 +36,10 @@ static void lw_write_dw(uint8_t *output, uint32_t input)
 {
 	uint8_t* ptr = output;
 
-	*(ptr++) = (uint8_t)(input), input >>= 8;
-	*(ptr++) = (uint8_t)(input), input >>= 8;
-	*(ptr++) = (uint8_t)(input), input >>= 8;
-	*(ptr++) = (uint8_t)(input);
+	*(ptr++) = (uint8_t)(input), input >>= 8u;
+	*(ptr++) = (uint8_t)(input), input >>= 8u;
+	*(ptr++) = (uint8_t)(input), input >>= 8u;
+	*(ptr) = (uint8_t)(input);
 }
 
 //static uint32_t lw_read_dw(uint8_t *buf)
@@ -65,10 +65,6 @@ void lw_msg_mic(lw_mic_t* mic, lw_key_t *key)
 //	meaning this frame is acknowledging an uplink �confirmed� frame,
 //	then ConfFCnt is the frame counter value modulo 2^16 of the �confirmed� uplink frame that is being acknowledged.
 //	In all other cases ConfFCnt = 0x0000.
-#if USE_LORAWAN_1_1 == 1
-#error "missing lorawan implementation!"
-#endif
-
     b0[5] = key->link;
 
     lw_write_dw(b0+6, key->devaddr.data);
