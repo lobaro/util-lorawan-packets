@@ -319,7 +319,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.FCnt16 & 0xffu);
 	outBuffer[pos++] = (uint8_t) (packet->BODY.MACPayload.FHDR.FCnt16 >> 8u);
 	//lw_key.fcnt32 = packet->BODY.MACPayload.FHDR.FCnt16;
-	lobaroASSERT((lib.state.pFCntCtrl->FCntUp & 0xffff) == packet->BODY.MACPayload.FHDR.FCnt16);
+	lobaroASSERT((lib.state.pFCntCtrl->FCntUp & 0xffffu) == packet->BODY.MACPayload.FHDR.FCnt16);
 	lw_key.fcnt32 = lib.state.pFCntCtrl->FCntUp;
 
 	if (lib.state.pDevCfg->LorawanVersion >= LORAWAN_VERSION_1_1) {
@@ -646,6 +646,11 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			lw_key.len = length - 1;
 			decryptedData[0] = dataToParse[0]; // MHDR can be copied as it's not encrypted
 			int pl_len = lw_join_decrypt(decryptedData + 1, &lw_key);
+/*			LOG_INFO("Lobawan: uncryp: ");
+			for (int i=0; i<length; i++) {
+				LOG_INFO("%02x", decryptedData[i]);
+			}
+			LOG_INFO("\n");*/
 
 			if (pl_len <= 0) {
 				LOG_ERROR("Lobawan: Can't decrypt JoinAccept\n");

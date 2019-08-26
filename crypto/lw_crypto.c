@@ -104,6 +104,12 @@ void lw_msg_mic11(lw_mic_t *mic, lw_key_mic11_t *key) {
 	b0[14] = 0x00;
 	b0[15] = (uint8_t)key->len;
 
+/*	log("B1: ");
+	for (int i=0; i<LW_KEY_LEN; i++) {
+		log("%02x", b0[i]);
+	}
+	log("\n");*/
+
 	// cmacS = aes128_cmac(SNwkSIntKey, B1 | msg)
 	AES_CMAC_CTX cmacctx;
 	AES_CMAC_Init(&cmacctx);
@@ -116,6 +122,11 @@ void lw_msg_mic11(lw_mic_t *mic, lw_key_mic11_t *key) {
 
 	// cmacF = aes128_cmac(FNwkSIntKey, B0 | msg)
 	b0[1] = b0[2] = b0[3] = b0[4] = 0x00;
+/*	log("B0: ");
+	for (int i=0; i<LW_KEY_LEN; i++) {
+		log("%02x", b0[i]);
+	}
+	log("\n");*/
 	AES_CMAC_Init(&cmacctx);
 	AES_CMAC_SetKey(&cmacctx, key->fnwksintkey);
 	AES_CMAC_Update(&cmacctx, b0, LW_KEY_LEN);
