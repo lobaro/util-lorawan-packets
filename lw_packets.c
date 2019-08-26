@@ -32,7 +32,12 @@
 #include <assert.h>
 #include <inttypes.h>
 
+#if configUSE_FREERTOS == 1
+#include "FreeRTOSConfig.h"
+#define lobaroASSERT(x) configASSERT(x)
+#else
 #define lobaroASSERT(x) assert(x)
+#endif
 #endif
 
 #include "crypto/lw_crypto.h"
