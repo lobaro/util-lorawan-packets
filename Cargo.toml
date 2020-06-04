@@ -1,0 +1,16 @@
+[package]
+name = "util-lorawan-packets"
+version = "0.1.0"
+authors = ["Tobias Kaupat <tk@lobaro.de>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# name = ""
+path="src/lib.rs"
+
+[dependencies]
+
+[build-dependencies]
+c-build = {path = "../c-build"}
