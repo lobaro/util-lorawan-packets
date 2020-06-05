@@ -379,6 +379,8 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 	if (bufferSize < pos + 4) {
 		return 0;
 	}
+
+	// note that this code is not run for OTAA Join Requests (see return above!)
 	if (lib.state.pDevCfg->LorawanVersion == LORAWAN_VERSION_1_0) {
 		// v1.0 has MIC calculated with the only used key [spec:1.1:800]
 		lw_key.aeskey = lib.state.pDevCfg->FNwkSIntKey;

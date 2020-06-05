@@ -215,6 +215,7 @@ typedef struct {
 	uint32_t MIC;
 
 	// internal control flag
+	// Length is saved in BODY.MACPayload.payloadLength
 	uint8_t* pPayload;    // != NULL if the body contains some memory that must be freed (maybe the case for dataUp/dataDown msg)
 	// this ensures a graceful delete of packet independent of MHDR type
 
