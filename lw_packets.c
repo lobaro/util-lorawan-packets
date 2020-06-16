@@ -33,7 +33,9 @@
 #include <inttypes.h>
 
 #if configUSE_FREERTOS == 1
+
 #include "FreeRTOSConfig.h"
+
 #define lobaroASSERT(x) configASSERT(x)
 #else
 #define lobaroASSERT(x) assert(x)
@@ -45,9 +47,6 @@
 
 #include "module_logging.h"
 
-/// set to 1 to include marshaling/unmarshaling only needed on network servers
-/// set to 0 for devices, saves space
-#define LW_SUPPORT_NETWORK_SERVER 0
 
 typedef struct {
 	lwPackets_api_t api;
@@ -57,16 +56,16 @@ typedef struct {
 
 static lwPacketsLib_t lib = {.initDone = false}; // holds external dependencies
 
-static uint16_t parseUInt16LittleEndian(const uint8_t* bytes) {
+static uint16_t parseUInt16LittleEndian(const uint8_t *bytes) {
 	return (((uint16_t) bytes[0]) << 0u) | (((uint16_t) bytes[1]) << 8u);
 }
 
-static uint32_t parseUInt32LittleEndian(const uint8_t* bytes) {
+static uint32_t parseUInt32LittleEndian(const uint8_t *bytes) {
 	return (((uint32_t) bytes[0]) << 0u) | (((uint32_t) bytes[1]) << 8u) | (((uint32_t) bytes[2]) << 16u) | (((uint32_t) bytes[3]) << 24u);
 }
 
 // EUI are 8 bytes multi-octet fields and are transmitted as little endian.
-static void convertInPlaceEUI64bufLittleEndian(uint8_t* eui8buf) {
+static void convertInPlaceEUI64bufLittleEndian(uint8_t *eui8buf) {
 	uint8_t tmp[8];
 	if (eui8buf) {
 		memcpy(tmp, eui8buf, 8);
@@ -76,7 +75,7 @@ static void convertInPlaceEUI64bufLittleEndian(uint8_t* eui8buf) {
 	}
 }
 
-static void logNothingDummy(const char* format, ...) {
+static void logNothingDummy(const char *format, ...) {
 	return;
 //  example log function may be implemented by app/user (#include <stdarg.h>, #include <stdio.h>) :
 //	char buffer[100];
@@ -111,19 +110,18 @@ void LoRaWAN_PacketsUtil_Init(lwPackets_api_t api, lwPackets_state_t state) {
 	lib.initDone = true;
 }
 
-lorawan_packet_t* LoRaWAN_NewPacket(const uint8_t* payload, uint8_t length) {
+lorawan_packet_t *LoRaWAN_NewPacket(const uint8_t *payload, uint8_t length) {
 	lobaroASSERT(lib.initDone);
 	lobaroASSERT(length <= 222); // max payload size of lorawan EU868 (see 2.1.6 lorawan 1.1 regional parameters)
 
-	lorawan_packet_t* packet = (lorawan_packet_t*) lib.api.malloc(sizeof(lorawan_packet_t));
+	lorawan_packet_t *packet = (lorawan_packet_t *) lib.api.malloc(sizeof(lorawan_packet_t));
 	if (packet == NULL) {
 		return NULL;
 	}
 	memset(packet, 0, sizeof(lorawan_packet_t));
 
-	if (payload != NULL && length) {
-
-		uint8_t* dataCpy = (uint8_t*) lib.api.malloc(length);
+	if (payload != NULL && length > 0) {
+		uint8_t *dataCpy = (uint8_t *) lib.api.malloc(length);
 		if (dataCpy == NULL) {
 			lib.api.free(packet);
 			return NULL;
@@ -139,26 +137,32 @@ lorawan_packet_t* LoRaWAN_NewPacket(const uint8_t* payload, uint8_t length) {
 	return packet;
 }
 
-void LoRaWAN_DeletePacket(lorawan_packet_t* packet) {
+void LoRaWAN_DeletePayload(lorawan_packet_t *packet) {
+	lobaroASSERT(lib.initDone);
+
+	// don't rely on packets MHDR type if there is any payload memory to free
+	if (packet != NULL && packet->pPayload != NULL) {
+		lib.api.free(packet->pPayload);
+		packet->pPayload = NULL;
+		packet->BODY.MACPayload.payloadLength = 0;
+	}
+}
+
+void LoRaWAN_DeletePacket(lorawan_packet_t *packet) {
 	lobaroASSERT(lib.initDone);
 
 	if (packet == NULL) {
 		return;
 	}
 
-	// don't rely on packets MHDR type if there is any payload memory to free
-	if (packet->pPayload) {
-		lib.api.free(packet->pPayload);
-		packet->pPayload = NULL;
-	}
-
+	LoRaWAN_DeletePayload(packet);
 	lib.api.free(packet);
 }
 
 // Marshal the packet into a given buffer, returns the actual size
 // Returns -1 when the buffer is too small
 
-uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint8_t bufferSize) {
+uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t *packet, uint8_t *outBuffer, uint8_t bufferSize) {
 	uint8_t pos = 0;
 	int optLen = 0;
 	lw_mic_t mic;     // 4 byte lorawan message integrity code (last bytes of PHYPayload)
@@ -221,58 +225,9 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 		pos += 4;
 
 		return pos;
-#if LW_SUPPORT_NETWORK_SERVER
-	} else if (packet->MHDR.type == MTYPE_JOIN_ACCEPT) {
-		// normally not needed by a LoRaWAN device but included for completeness (issued by a network server only!)
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 0u);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 8u);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.JoinNonce >> 16u);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 0u);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 8u);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.HomeNetID >> 16u);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 0u);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 8u);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 16u);
-		outBuffer[pos++] = (uint8_t) (packet->BODY.JoinAccept.DevAddr >> 24u);
 
-		uint8_t dlsettings = 0;
-		dlsettings |= ((uint8_t) (packet->BODY.JoinAccept.DLsettings.Rx1DRoffset << 4u));
-		dlsettings |= ((uint8_t) packet->BODY.JoinAccept.DLsettings.Rx2DR);
-		outBuffer[pos++] = dlsettings;
-
-		outBuffer[pos++] = packet->BODY.JoinAccept.RxDelay;
-		if (packet->BODY.JoinAccept.hasCFlist) {
-			memcpy(&(outBuffer[pos]), packet->BODY.JoinAccept.CFlist.FreqCH4, 3);
-			pos += 3;
-			memcpy(&(outBuffer[pos]), packet->BODY.JoinAccept.CFlist.FreqCH5, 3);
-			pos += 3;
-			memcpy(&(outBuffer[pos]), packet->BODY.JoinAccept.CFlist.FreqCH6, 3);
-			pos += 3;
-			memcpy(&(outBuffer[pos]), packet->BODY.JoinAccept.CFlist.FreqCH7, 3);
-			pos += 3;
-			memcpy(&(outBuffer[pos]), packet->BODY.JoinAccept.CFlist.FreqCH8, 3);
-			pos += 3;
-		}
-
-		// calc mic
-		lw_key.aeskey = lib.state.pDevCfg->AppKey;
-		lw_key.in = outBuffer;
-		lw_key.len = pos;
-		lw_join_mic(&mic, &lw_key);
-		memcpy(outBuffer + pos, mic.buf, 4);
-		pos += 4;
-
-		// encrypt msg
-		uint8_t out[33];
-		lw_key.aeskey = lib.state.pDevCfg->AppKey;
-		lw_key.in = outBuffer + 1; // skip MHDR byte
-		lw_key.len = pos - 1;
-		lw_join_encrypt(out, &lw_key);
-		memcpy(outBuffer + 1, out, lw_key.len);
-		return pos;
-#endif
 	} else {
-		LOG_ERROR("unknown LoRaWAN msg type for marshaling!");
+		LOG_ERROR("LoRa| unknown msg type for marshaling!");
 		return 0;
 	}
 
@@ -297,22 +252,6 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 						   | (packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen);
 
 		optLen = packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen;
-#if LW_SUPPORT_NETWORK_SERVER
-	} else if (packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_DOWN
-			   || packet->MHDR.type == MTYPE_CONFIRMED_DATA_DOWN) {
-
-		// downlink packet
-		if (bufferSize < pos + 1) {
-			return 0;
-		}
-		outBuffer[pos++] = (packet->BODY.MACPayload.FHDR.FCtrl.downlink.ADR << 7u)
-						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.RFU << 6u)
-						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.ACK << 5u)
-						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.FPending << 4u)
-						   | (packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen);
-
-		optLen = packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen;
-#endif
 	} else {
 		lobaroASSERT(false); // "join accept, request not implemented yet! (we aren't a network server yet!)");
 	}
@@ -413,7 +352,7 @@ uint8_t LoRaWAN_MarshalPacket(lorawan_packet_t* packet, uint8_t* outBuffer, uint
 // Like LoRaWAN_NewPacket but takes a marshaled packet as input
 // MUST be freed with LoRaWAN_DeletePacket
 // data is the raw packet as produced by LoRaWAN_MarshalPacket
-lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t length, uint32_t address) { // todo add keys as parameter
+lorawan_packet_t *LoRaWAN_UnmarshalPacketFor(const uint8_t *dataToParse, uint8_t length, uint32_t address) { // todo add keys as parameter
 	uint8_t idx;
 	lw_mic_t micCalc;        // calculated mic
 	lw_key_t lw_key;
@@ -423,12 +362,11 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 		return NULL;
 	}
 
-	lorawan_packet_t* packet = (lorawan_packet_t*) lib.api.malloc(sizeof(lorawan_packet_t));
+	lorawan_packet_t *packet = LoRaWAN_NewPacket(NULL, 0);
 	if (packet == NULL) {
-		LOG_ERROR("Lobawan: Out of memory\n");
+		LOG_ERROR("LoRa| OOM\n");
 		return NULL;
 	}
-	memset(packet, 0, sizeof(lorawan_packet_t));
 
 	// MHDR
 	idx = 0;
@@ -437,26 +375,22 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 	idx++;
 
 	if (packet->MHDR.type == MTYPE_PROPRIETARY) {
-		LOG_ERROR("Lobawan| Got proprietary MHDR -> discard msg\n");
-		lib.api.free(packet);
+		LOG_ERROR("LoRa| Got proprietary MHDR -> drop packet\n");
+		LoRaWAN_DeletePacket(packet);
 		return NULL;
 	}
 
 	if (address != 0) {
 		// receive for specific address can never be a join accept
-		if (packet->MHDR.type==MTYPE_JOIN_ACCEPT) {
-			LOG_INFO("Lobawan| ignoring join accept\n");
-			lib.api.free(packet);
+		if (packet->MHDR.type == MTYPE_JOIN_ACCEPT) {
+			LOG_INFO("LoRa| join accept -> drop packet\n");
+			LoRaWAN_DeletePacket(packet);
 			return NULL;
 		}
 
 	}
 
 	switch (packet->MHDR.type) {
-#if LW_SUPPORT_NETWORK_SERVER
-		case MTYPE_UNCONFIRMED_DATA_UP:
-		case MTYPE_CONFIRMED_DATA_UP:
-#endif
 		case MTYPE_UNCONFIRMED_DATA_DOWN:
 		case MTYPE_CONFIRMED_DATA_DOWN:
 			idx = 1; // skip already parsed MHDR
@@ -467,18 +401,19 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			// if we got an address (<>0), we only try to unmarshal messages for that address
 			if (address != 0) {
 				if (packet->BODY.MACPayload.FHDR.DevAddr == address) {
-					LOG_ERROR("Lobawan: Received msg for addr %08x, that's me\n", address);
+					LOG_ERROR("LoRa| Received msg for addr %08x, that's me\n", address);
 				} else {
 					// that message is not for us, ignore it
-					LOG_ERROR("Lobawan: Received msg for addr %08x (I am %08x), ignoring\n", packet->BODY.MACPayload.FHDR.DevAddr, address);
-					lib.api.free(packet);
+					LOG_ERROR("LoRa| Received msg for addr %08x (I am %08x), ignoring\n", packet->BODY.MACPayload.FHDR.DevAddr, address);
+					LoRaWAN_DeletePacket(packet);
 					return NULL;
 				}
 			}
 
 			// Port is needed to pick correct counter and key, so we do this first:
 			packet->BODY.MACPayload.FPort = 0;
-#define FCTRLPOS 5
+			const uint8_t FCTRLPOS = 5;
+
 			if (length > FCTRLPOS) {
 				uint8_t foptslen = dataToParse[FCTRLPOS] & 0xfu;
 				uint8_t portPos = 1 + 4 + 1 + 2 + foptslen;  // MHDR(1) + DevAddr(4) + FCtrl(1) + FCnt(2) + FOpts(foptslen)
@@ -503,44 +438,28 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			lw_key.devaddr.data = packet->BODY.MACPayload.FHDR.DevAddr;
 
 			uint32_t currFCnt32;
-			bool uplink = false;
-#if LW_SUPPORT_NETWORK_SERVER
-
-		if (packet->MHDR.type == MTYPE_CONFIRMED_DATA_UP || packet->MHDR.type == MTYPE_UNCONFIRMED_DATA_UP) {
-				uplink = true;
-				lw_key.link = LW_UPLINK;
-				currFCnt32 = lib.state.pFCntCtrl->FCntUp;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADR = fctrl >> 7u;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ADRACKReq = (fctrl & (1u << 6u)) >> 6u;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ACK = (fctrl & (1u << 5u)) >> 5u;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.ClassB = (fctrl & (1u << 4u)) >> 4u;
-				packet->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen = (fctrl & 0x0fu);
-			} else { // downlink
-#endif
-				lw_key.link = LW_DOWNLINK;
-				bool useAFCntDwn = false;
-				if (lib.state.pDevCfg->LorawanVersion >= LORAWAN_VERSION_1_1) {
-					// LoRaWAN 1.1 -- separate DL counters
-					if (packet->BODY.MACPayload.FPort == 0) {
-						// LOG_INFO("NFCntDwn: %d\n", lib.state.pFCntCtrl->NFCntDwn);
-						currFCnt32 = lib.state.pFCntCtrl->NFCntDwn;
-					} else {
-						// LOG_INFO("AFCntDwn: %d\n", lib.state.pFCntCtrl->AFCntDwn);
-						currFCnt32 = lib.state.pFCntCtrl->AFCntDwn;
-						useAFCntDwn = true;
-					}
-				} else {
-					// LoRaWAN 1.0 -- use only one counter
-					// LOG_INFO("FCntDwn: %d\n", lib.state.pFCntCtrl->NFCntDwn);
+			lw_key.link = LW_DOWNLINK;
+			bool useAFCntDwn = false;
+			if (lib.state.pDevCfg->LorawanVersion >= LORAWAN_VERSION_1_1) {
+				// LoRaWAN 1.1 -- separate DL counters
+				if (packet->BODY.MACPayload.FPort == 0) {
+					// LOG_INFO("NFCntDwn: %d\n", lib.state.pFCntCtrl->NFCntDwn);
 					currFCnt32 = lib.state.pFCntCtrl->NFCntDwn;
+				} else {
+					// LOG_INFO("AFCntDwn: %d\n", lib.state.pFCntCtrl->AFCntDwn);
+					currFCnt32 = lib.state.pFCntCtrl->AFCntDwn;
+					useAFCntDwn = true;
 				}
-				packet->BODY.MACPayload.FHDR.FCtrl.downlink.ADR = fctrl >> 7u;
-				packet->BODY.MACPayload.FHDR.FCtrl.downlink.ACK = (fctrl & (1u << 5u)) >> 5u;
-				packet->BODY.MACPayload.FHDR.FCtrl.downlink.FPending = (fctrl & (1u << 4u)) >> 4u;
-				packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen = (fctrl & 0x0fu);
-#if LW_SUPPORT_NETWORK_SERVER
+			} else {
+				// LoRaWAN 1.0 -- use only one counter
+				// LOG_INFO("FCntDwn: %d\n", lib.state.pFCntCtrl->NFCntDwn);
+				currFCnt32 = lib.state.pFCntCtrl->NFCntDwn;
 			}
-#endif
+			packet->BODY.MACPayload.FHDR.FCtrl.downlink.ADR = fctrl >> 7u;
+			packet->BODY.MACPayload.FHDR.FCtrl.downlink.ACK = (fctrl & (1u << 5u)) >> 5u;
+			packet->BODY.MACPayload.FHDR.FCtrl.downlink.FPending = (fctrl & (1u << 4u)) >> 4u;
+			packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen = (fctrl & 0x0fu);
+
 
 			// currFCnt32 holds the next expected FCnt for received packet (since the first FCnt is 0)
 			uint16_t currFCnt32_LSB = (uint16_t) currFCnt32;
@@ -551,6 +470,18 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 				// we expect overflow, replays will have invalid MIC after overflow (since 32bit counter is different)
 				currFCnt32_MSB++;
 			}
+
+			// LoRaWAN 1.0.x only, when
+			if (lib.state.pDevCfg->LorawanVersion >= LORAWAN_VERSION_1_0) {
+				const MAX_FCNT_GAP = 16384;
+				if (packet->BODY.MACPayload.FHDR.FCnt16 - currFCnt32_LSB > MAX_FCNT_GAP) {
+					LOG_ERROR("LoRa| Downlink FCnt increased by more than MAX_FCNT_GAP (%d): FCnt=%d expected FCnt=%d -> drop packet\n",
+							  MAX_FCNT_GAP, packet->BODY.MACPayload.FHDR.FCnt16, currFCnt32_LSB);
+					LoRaWAN_DeletePacket(packet);
+					return NULL;
+				}
+			}
+
 			currFCnt32 = (((uint32_t) currFCnt32_MSB) << 16u) + packet->BODY.MACPayload.FHDR.FCnt16;
 			lw_key.fcnt32 = currFCnt32;
 //			LOG_INFO("Lobawan| FCnt16: %04x, FCnt32: %08x\n", packet->BODY.MACPayload.FHDR.FCnt16, currFCnt32);
@@ -561,8 +492,8 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			lw_msg_mic(&micCalc, &lw_key);
 
 			if (micCalc.data != packet->MIC) {    // check if mic is ok
-				LOG_ERROR("Data %s MIC error %u != %u (expected) -> discarding incoming packet\n", uplink ? "uplink" : "downlink", packet->MIC, micCalc.data);
-				lib.api.free(packet);
+				LOG_ERROR("LoRa| Data MIC error %u != %u (expected) -> drop packet\n", packet->MIC, micCalc.data);
+				LoRaWAN_DeletePacket(packet);
 				return NULL;
 			}
 
@@ -597,7 +528,7 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 				idx++;
 				if (length == lengthWithoutPayloadAndPort + 1) { // no payload, but port
 					packet->BODY.MACPayload.payloadLength = 0;
-					LOG_ERROR("Lobawan: warn packet with port but without payload\n");
+					LOG_ERROR("LoRa| warn packet with port but without payload\n");
 				} else {
 					packet->BODY.MACPayload.payloadLength = length - 4 - idx;
 
@@ -609,19 +540,18 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 					lw_key.in = (uint8_t *) &(dataToParse[idx]);
 					lw_key.len = packet->BODY.MACPayload.payloadLength;
 
-					packet->pPayload = (uint8_t*) lib.api.malloc(packet->BODY.MACPayload.payloadLength);
+					packet->pPayload = (uint8_t *) lib.api.malloc(packet->BODY.MACPayload.payloadLength);
 
 					if (packet->pPayload == NULL) {
-						LOG_ERROR("LoRaWAN_UnmarshalPacket failed -> out of memory!\n");
-						lib.api.free(packet);
+						LOG_ERROR("LoRa| LoRaWAN_UnmarshalPacket OOM!\n");
+						LoRaWAN_DeletePacket(packet);
 						return NULL;
 					}
 
 					// decrypt by encrypt
 					if (lw_encrypt(packet->pPayload, &lw_key) <= 0) {
 						LOG_ERROR("LoRaWAN_UnmarshalPacket decrypt fail\n");
-						lib.api.free(packet->pPayload);
-						lib.api.free(packet);
+						LoRaWAN_DeletePacket(packet);
 						return NULL;
 					}
 				}
@@ -629,6 +559,20 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			} else { // no payload, no port, no cry
 				packet->BODY.MACPayload.payloadLength = 0;
 				packet->pPayload = NULL;
+			}
+
+			uint8_t fOptsLen = packet->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen;
+			uint8_t fPort = packet->BODY.MACPayload.FPort;
+			uint8_t payloadLen = packet->BODY.MACPayload.payloadLength;
+
+			// LoRaWAN 1.1 - 4.3.1.6 Frame options
+			// 677 MAC commands cannot be simultaneously present in the payload field and the frame
+			// 678 options field. Should this occur, the device SHALL ignore the frame.
+			// Do not handle Port 0 with fOpts and payload! -> Required by LCTT
+			if (fPort == 0 && fOptsLen > 0 && payloadLen > 0) {
+				LOG_ERROR("LoRa| Port 0: fOptsLen & payloadLen set -> drop packet\n");
+				LoRaWAN_DeletePacket(packet);
+				return NULL;
 			}
 
 			return packet;
@@ -641,8 +585,8 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			} else if (length == 17 + 16) {
 				packet->BODY.JoinAccept.hasCFlist = true; // optional frequency list send by network server
 			} else {
-				LOG_ERROR("Lobawan: Got JoinRequest with unexpected length -> discarding incoming packet\n");
-				lib.api.free(packet);
+				LOG_ERROR("LoRa| Got JoinRequest with unexpected length -> drop packet\n");
+				LoRaWAN_DeletePacket(packet);
 				return NULL;
 			}
 
@@ -660,8 +604,8 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			LOG_INFO("\n");*/
 
 			if (pl_len <= 0) {
-				LOG_ERROR("Lobawan: Can't decrypt JoinAccept\n");
-				lib.api.free(packet);
+				LOG_ERROR("LoRa| Can't decrypt JoinAccept\n");
+				LoRaWAN_DeletePacket(packet);
 				return NULL;
 			}
 
@@ -697,8 +641,8 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 			}
 			// LOG_INFO("Lobawan| MIC: calc=%08x, pack=%08x\n", micCalc.data, packet->MIC);
 			if (micCalc.data != packet->MIC) {    // check if mic is ok
-				LOG_ERROR("Join accept mic error -> discarding incoming packet\n");
-				lib.api.free(packet);
+				LOG_ERROR("LoRa| Join accept mic error -> drop packet\n");
+				LoRaWAN_DeletePacket(packet);
 				return NULL;
 			}
 
@@ -758,42 +702,10 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 
 			// app should adjust nwkskey, appskey, devAdr, netId, appnounce
 			return packet;
-#if LW_SUPPORT_NETWORK_SERVER
-		case MTYPE_JOIN_REQUEST:
-			// normally NOT needed to parse by a lorawan device but included for completeness (Unmarshalled by network servers only!)
-			if (length != 23) { // MHDR(1) + [APPEUI(8) + DEVEUI(8) + DEVNOUNCE(2)] + MIC(4)
-				LOG_ERROR("Lobawan: Got JoinRequest with unexspected length -> discarding incoming packet\n");
-				lib.api.free(packet);
-				return NULL;
-			}
 
-			packet->MIC = parseUInt32LittleEndian(dataToParse + length - 4);
-
-			lw_key.aeskey = lib.state.pDevCfg->NwkKey;
-			lw_key.in = dataToParse;
-			lw_key.len = length - 4;
-			lw_join_mic(&micCalc, &lw_key);
-
-			// check if mic is ok
-			if (micCalc.data != packet->MIC) {
-				LOG_ERROR("Join Request mic error -> discarding incoming packet\n");
-				lib.api.free(packet);
-				return NULL;
-			}
-
-			idx = 1; // skip already parsed MHDR
-			memcpy(packet->BODY.JoinRequest.joinEUI, dataToParse + idx, 8);
-			idx += 8;
-			memcpy(packet->BODY.JoinRequest.devEUI, dataToParse + idx, 8);
-			idx += 8;
-
-			packet->BODY.JoinRequest.devnonce = parseUInt16LittleEndian(&(dataToParse[idx]));
-			//idx += 2;
-			return packet;
-#endif
 		default:
-			LOG_ERROR("Lobawan: unknown MHDR type -> discarding incoming packet\n");
-			lib.api.free(packet);
+			LOG_ERROR("LoRa| unknown MHDR type -> drop packet\n");
+			LoRaWAN_DeletePacket(packet);
 			return NULL;
 	}
 
@@ -803,6 +715,6 @@ lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t
 // Like LoRaWAN_NewPacket but takes a marshaled packet as input
 // MUST be freed with LoRaWAN_DeletePacket
 // data is the raw packet as produced by LoRaWAN_MarshalPacket
-lorawan_packet_t* LoRaWAN_UnmarshalPacket(const uint8_t* dataToParse, uint8_t length) { // todo add keys as parameter
+lorawan_packet_t *LoRaWAN_UnmarshalPacket(const uint8_t *dataToParse, uint8_t length) { // todo add keys as parameter
 	return LoRaWAN_UnmarshalPacketFor(dataToParse, length, 0);
 }

@@ -77,7 +77,7 @@ typedef struct{
 
 typedef struct{
     uint8_t *aeskey;
-    uint8_t *in;
+    const uint8_t *in;
     uint16_t len;
     lw_devaddr_t devaddr;
     lw_link_t link;
