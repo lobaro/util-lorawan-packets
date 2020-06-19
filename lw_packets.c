@@ -565,7 +565,7 @@ lorawan_packet_t *LoRaWAN_UnmarshalPacketFor(const uint8_t *dataToParse, uint8_t
 
 			// LoRaWAN 1.0.x only, when
 			if (lib.state.pDevCfg->LorawanVersion >= LORAWAN_VERSION_1_0) {
-				const MAX_FCNT_GAP = 16384;
+				const int MAX_FCNT_GAP = 16384;
 				if (packet->BODY.MACPayload.FHDR.FCnt16 - currFCnt32_LSB > MAX_FCNT_GAP) {
 					LOG_ERROR("LoRa| Downlink FCnt increased by more than MAX_FCNT_GAP (%d): FCnt=%d expected FCnt=%d -> drop packet\n",
 							  MAX_FCNT_GAP, packet->BODY.MACPayload.FHDR.FCnt16, currFCnt32_LSB);
