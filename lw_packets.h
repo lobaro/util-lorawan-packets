@@ -39,6 +39,8 @@
 extern "C" {
 #endif
 
+#define LORAWAN_MAX_FOPTS_LEN (15)
+
 // LoRaWAN MAC header (MHDR)
 typedef enum {
 	MTYPE_JOIN_REQUEST = 0,
@@ -60,43 +62,53 @@ typedef struct {
 	MHDR_LoRaWAN_MajorVersion_t version;
 } MHDR_t;
 
+// Downlink mac commands
 typedef enum {
-	ResetInd = 0x01, // Send by Device (LoRaWAN 1.1)
-	ResetConf = 0x01,
 	// From here LoRaWAN 1.0
-	LinkCheckReq = 0x02, // Send by Device
-	LinkCheckAns = 0x02,
-	LinkADRReq = 0x03,
-	LinkADRAns = 0x03,
-	DutyCycleReq = 0x04,
-	DutyCycleAns = 0x04,
-	RXParamSetupReq = 0x05,
-	RXParamSetupAns = 0x05,
-	DevStatusReq = 0x06,
-	DevStatusAns = 0x06,
-	NewChannelReq = 0x07,
-	NewChannelAns = 0x07,
-	RXTimingSetupReq = 0x08,
-	RXTimingSetupAns = 0x08,
+	GwLinkCheckAns = 0x02,
+	GwLinkADRReq = 0x03,
+	GwDutyCycleReq = 0x04,
+	GwRXParamSetupReq = 0x05,
+	GwDevStatusReq = 0x06,
+	GwNewChannelReq = 0x07,
+	GwRXTimingSetupReq = 0x08,
 	// From here LoRaWAN 1.1
-	TxParamSetupReq = 0x09,
-	TxParamSetupAns = 0x09,
-	DlChannelReq = 0x0A,
-	DlChannelAns = 0x0A,
-	RekeyInd = 0x0B, // Send by Device
-	RekeyConf = 0x0B,
-	ADRParamSetupReq = 0x0C,
-	ADRParamSetupAns = 0x0C,
-	DeviceTimeReq = 0x0D, // Send by Device
-	DeviceTimeAns = 0x0D,
-	ForceRejoinReq = 0x0E,
-	RejoinParamSetupReq = 0x0F,
-	RejoinParamSetupAns = 0x0F,
+	GwResetConf = 0x01,
+	GwTxParamSetupReq = 0x09,
+	GwDlChannelReq = 0x0A,
+	GwRekeyConf = 0x0B,
+	GwADRParamSetupReq = 0x0C,
+	GwDeviceTimeAns = 0x0D,
+	GwForceRejoinReq = 0x0E,
+	GwRejoinParamSetupReq = 0x0F,
 	// [1.1:2359] MAC commands for Class C devices:
-	DeviceModeInd = 0x20,  // Send by Device
-	DeviceModeConf = 0x20,
+	GwDeviceModeConf = 0x20,
 	// 0x80 .. 0xFF Reserved for proprietary network command extensions
-} Lorawan_MacCommand_t; // Corresponds to the CID
+} Lorawan_MacCommandDown_t; // Corresponds to the CID
+
+// Uplink mac commands
+typedef enum {
+	// From here LoRaWAN 1.0
+	DevLinkCheckReq = 0x02,
+	DevLinkADRAns = 0x03,
+	DevDutyCycleAns = 0x04,
+	DevRXParamSetupAns = 0x05, // Repeat until downlink
+	DevDevStatusAns = 0x06,
+	DevNewChannelAns = 0x07,
+	DevRXTimingSetupAns = 0x08, // Repeat until downlink
+	// From here LoRaWAN 1.1
+	DevResetInd = 0x01, // Send by Device
+	DevTxParamSetupAns = 0x09,
+	DevDlChannelAns = 0x0A, // Repeat until downlink
+	DevRekeyInd = 0x0B, // Send by Device
+	DevADRParamSetupAns = 0x0C,
+	DevDeviceTimeReq = 0x0D, // Send by Device
+	DevRejoinParamSetupAns = 0x0F,
+	// [1.1:2359] MAC commands for Class C devices:
+	DevDeviceModeInd = 0x20,  // Send by Device
+	// 0x80 .. 0xFF Reserved for proprietary network command extensions
+} Lorawan_MacCommandUp_t; // Corresponds to the CID
+
 
 
 // part of FHDR_FCtrl_t
@@ -123,12 +135,14 @@ typedef union {
 	FHDR_FCtrl_uplink_t uplink;
 } FHDR_FCtrl_t;
 
+
+
 // part of MACPayload_t
 typedef struct {
 	uint32_t DevAddr;
 	FHDR_FCtrl_t FCtrl;
 	uint16_t FCnt16; // only LSB of 32 bit frame Counter
-	uint8_t FOpts[16]; // Max 15 bytes! Any reason for 16 byte? Alignment?
+	uint8_t FOpts[LORAWAN_MAX_FOPTS_LEN]; // Max 15 bytes! Any reason for 16 byte? Alignment?
 } FHDR_t;
 
 // part of MsgBody_t (union)
