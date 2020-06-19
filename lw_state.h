@@ -80,10 +80,15 @@ typedef struct {
 // LoRaWAN network control / state parameter
 typedef struct {
 	uint32_t FCntUp;
-	uint32_t AFCntDwn;  // used for all other ports when the device operates as a LoRaWAN 1.1 or for all communications on LoRaWAN 1.0.1
-	uint32_t NFCntDwn;  // used for MAC communication on port 0 and when the FPort field is missing (LoRaWAN 1.1 only)
-						// In the two counters scheme the NFCntDown is managed by the Network Server, whereas
-						// the AFCntDown is managed by the application server
+
+	// NFCntDwn is FCntDown (LW 1.0) for all communications on LoRaWAN 1.0.1
+	// NFCntDwn is used for MAC communication on port 0 and when the FPort field is missing (LoRaWAN 1.1 only)
+	// In the two counters scheme the NFCntDown is managed by the Network Server, whereas
+	// the AFCntDown is managed by the application server
+	uint32_t NFCntDwn;
+	// AFCntDwn is used for all ports > 0 when the device operates as a LoRaWAN 1.1
+	uint32_t AFCntDwn;
+
 } Lorawan_fcnt_t;
 
 #endif

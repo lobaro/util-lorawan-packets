@@ -41,6 +41,7 @@ extern "C" {
 
 #define LORAWAN_MAX_FOPTS_LEN (15)
 
+
 // LoRaWAN MAC header (MHDR)
 typedef enum {
 	MTYPE_JOIN_REQUEST = 0,
@@ -142,7 +143,7 @@ typedef struct {
 	uint32_t DevAddr;
 	FHDR_FCtrl_t FCtrl;
 	uint16_t FCnt16; // only LSB of 32 bit frame Counter
-	uint8_t FOpts[LORAWAN_MAX_FOPTS_LEN]; // Max 15 bytes! Any reason for 16 byte? Alignment?
+	uint8_t FOpts[LORAWAN_MAX_FOPTS_LEN];
 } FHDR_t;
 
 // part of MsgBody_t (union)
@@ -262,6 +263,7 @@ typedef struct {
 // must be called at least once before usage
 void LoRaWAN_PacketsUtil_Init(lwPackets_api_t api, lwPackets_state_t state);
 
+void lorawan_logLoraPacket(lorawan_packet_t *p, bool uplink);
 // LoRaWAN packet parser
 lorawan_packet_t* LoRaWAN_UnmarshalPacket(const uint8_t* dataToParse, uint8_t length);   // must  be deleted again!
 lorawan_packet_t* LoRaWAN_UnmarshalPacketFor(const uint8_t* dataToParse, uint8_t length, uint32_t addr);   // must  be deleted again!

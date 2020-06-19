@@ -47,6 +47,11 @@
 
 #include "module_logging.h"
 
+#if configLOG_LOBAWAN == 1
+#define LOG(...) lib.api.LogInfo(__VA_ARGS__)
+#else
+#define LOG(...) {}
+#endif
 
 typedef struct {
 	lwPackets_api_t api;
@@ -109,6 +114,89 @@ void LoRaWAN_PacketsUtil_Init(lwPackets_api_t api, lwPackets_state_t state) {
 
 	lib.initDone = true;
 }
+
+
+static const char *mhdrString(MHDR_Mtype_t t) {
+	switch (t) {
+		case MTYPE_JOIN_REQUEST:
+			return "JOIN_REQUEST";
+		case MTYPE_JOIN_ACCEPT:
+			return "JOIN_ACCEPT";
+		case MTYPE_UNCONFIRMED_DATA_UP:
+			return "UNCONFIRMED_DATA_UP";
+		case MTYPE_UNCONFIRMED_DATA_DOWN:
+			return "UNCONFIRMED_DATA_DOWN";
+		case MTYPE_CONFIRMED_DATA_UP:
+			return "CONFIRMED_DATA_UP";
+		case MTYPE_CONFIRMED_DATA_DOWN:
+			return "CONFIRMED_DATA_DOWN";
+		case MTYPE_REJOIN_REQUEST:
+			return "REJOIN_REQUEST";
+		case MTYPE_PROPRIETARY:
+			return "PROPRIETARY";
+		default:
+			return "UNKNOWN";
+	}
+}
+
+// note that MIC can only be printed correctly after marshal was called on the packet
+void lorawan_logLoraPacket(lorawan_packet_t *p, bool uplink) {
+	LOG("\nLoRa| LoRaWAN Packet (%s)\n", uplink ? "Uplink" : "Downlink");
+	LOG("LoRa| --------------\n");
+	LOG("LoRa| MIC: %08X\n", p->MIC); // LCTT prints the MIC in inverted byte order ...
+	LOG("LoRa| MHDR: %s v%d\n", mhdrString(p->MHDR.type), p->MHDR.version);
+	// TODO: We only support MACPayload
+	LOG("LoRa| BODY:\n");
+	LOG("LoRa| - mac.port: %d\n", p->BODY.MACPayload.FPort);
+	LOG("LoRa| - mac.payloadLength: %d\n", p->BODY.MACPayload.payloadLength);
+	LOG("LoRa| - mac.FCnt16: %d\n", p->BODY.MACPayload.FHDR.FCnt16);
+	LOG("LoRa| - mac.DevAddr: %08x\n", p->BODY.MACPayload.FHDR.DevAddr);
+
+	if (uplink) {
+		// Uplink
+		LOG("LoRa| - FCtrl: ADR %d, ADRACKReq %d, ACK %d, ClassB %d, FOptsLen %d\n",
+			p->BODY.MACPayload.FHDR.FCtrl.uplink.ADR,
+			p->BODY.MACPayload.FHDR.FCtrl.uplink.ADRACKReq,
+			p->BODY.MACPayload.FHDR.FCtrl.uplink.ACK,
+			p->BODY.MACPayload.FHDR.FCtrl.uplink.ClassB,
+			p->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen
+		);
+		if (p->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen > 0) {
+			LOG("LoRa| - FOpts: ");
+			for (int i = 0; i < p->BODY.MACPayload.FHDR.FCtrl.uplink.FOptsLen; i++) {
+				LOG("%02x", p->BODY.MACPayload.FHDR.FOpts[i]);
+			}
+			LOG("\n");
+		}
+	} else {
+		// Downlink
+		LOG("LoRa| - FCtrl: ADR %d, RFU: %d, ACK %d, FPending %d, FOptsLen %d\n",
+			p->BODY.MACPayload.FHDR.FCtrl.downlink.ADR,
+			p->BODY.MACPayload.FHDR.FCtrl.downlink.RFU,
+			p->BODY.MACPayload.FHDR.FCtrl.downlink.ACK,
+			p->BODY.MACPayload.FHDR.FCtrl.downlink.FPending,
+			p->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen
+		);
+		if (p->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen > 0) {
+			LOG("LoRa| - FOpts: ");
+			for (int i = 0; i < p->BODY.MACPayload.FHDR.FCtrl.downlink.FOptsLen; i++) {
+				LOG("%02x", p->BODY.MACPayload.FHDR.FOpts[i]);
+			}
+			LOG("\n");
+		}
+	}
+	// Log out payload as hex
+	LOG("LoRa| PAYLOAD:");
+	if (p->BODY.MACPayload.payloadLength == 0) {
+		LOG(" [none]");
+	} else {
+		for (uint16_t i = 0; i < p->BODY.MACPayload.payloadLength; i++) {
+			LOG(" %02x", p->pPayload[i]);
+		}
+	}
+	LOG("\n");
+}
+
 
 lorawan_packet_t *LoRaWAN_NewPacket(const uint8_t *payload, uint8_t length) {
 	lobaroASSERT(lib.initDone);
@@ -465,7 +553,11 @@ lorawan_packet_t *LoRaWAN_UnmarshalPacketFor(const uint8_t *dataToParse, uint8_t
 			uint16_t currFCnt32_LSB = (uint16_t) currFCnt32;
 			uint16_t currFCnt32_MSB = (uint16_t) (currFCnt32 >> 16u);
 //			LOG_INFO("Lobawan| counter: %cFCntDwn, current: %08x\n", (useAFCntDwn?'A':'N'), currFCnt32);
-			if (packet->BODY.MACPayload.FHDR.FCnt16 < currFCnt32_LSB) {
+			// In LoRaWAN 1.. it's allowed to re-transmit the last downlink (due to LCTT)
+			// TODO: Clarify: In LoRaWAN 1.1 retransmissions are not allowed (but we still allow a retransmission of the last packet yet!)
+			// See: https://lcttbugs.lora-alliance.com/bugzilla/show_bug.cgi?id=172
+			// Thus the "- 1"
+			if (packet->BODY.MACPayload.FHDR.FCnt16 < currFCnt32_LSB - 1) {
 				// this is either a replay or a 16bit overflow
 				// we expect overflow, replays will have invalid MIC after overflow (since 32bit counter is different)
 				currFCnt32_MSB++;
@@ -492,7 +584,9 @@ lorawan_packet_t *LoRaWAN_UnmarshalPacketFor(const uint8_t *dataToParse, uint8_t
 			lw_msg_mic(&micCalc, &lw_key);
 
 			if (micCalc.data != packet->MIC) {    // check if mic is ok
-				LOG_ERROR("LoRa| Data MIC error %u != %u (expected) -> drop packet\n", packet->MIC, micCalc.data);
+				LOG_ERROR("LoRa| Data MIC error 0x%8X != 0x%8X (expected) -> drop packet\n", packet->MIC, micCalc.data);
+				LOG_ERROR("lwKey: fCnt: %d len: %d\n", lw_key.fcnt32, lw_key.len, lw_key.devaddr);
+				lorawan_logLoraPacket(packet, false);
 				LoRaWAN_DeletePacket(packet);
 				return NULL;
 			}
